@@ -6,59 +6,86 @@ use std::thread;
 pub struct Command {
     name: String,
     command: String,
+    args: Vec<String>,
 }
 
 pub struct CommandHandle {
     handle: thread::JoinHandle<()>,
 }
 
+impl CommandHandle {
+    pub fn join(self) {
+        self.handle
+            .join()
+            .unwrap_or_else(|_| panic!("Unable to join on handle"));
+    }
+}
+
 impl Command {
-    pub fn new(name: String, command: String) -> Command {
-        Command { name, command }
+    pub fn new(name: String, command: String, args: Vec<String>) -> Command {
+        Command {
+            name,
+            command,
+            args,
+        }
     }
 }
 
 pub fn run_commands(commands: Vec<Command>) -> CommandHandle {
     let handle = thread::spawn(|| {
+        let mut handles = Vec::new();
         for cmd in commands {
-            run_command(&cmd);
+            handles.push(run_command(&cmd));
+        }
+
+        for handle in handles {
+            handle
+                .join()
+                .unwrap_or_else(|_| panic!("Unable to join handle"));
         }
     });
 
     CommandHandle { handle }
 }
 
-pub fn run_command(command: &Command) {
-    let arguments = command.command.split_whitespace().collect::<Vec<&str>>();
-    if arguments.is_empty() {
-        panic!("no arguments given to command");
-    }
-
-    let mut command_process = process::Command::new(arguments[0]);
-    command_process.args(&arguments[1..]);
+pub fn run_command(command: &Command) -> thread::JoinHandle<()> {
+    let mut command_process = process::Command::new(&command.command);
+    command_process.args(&command.args);
     command_process.stdout(process::Stdio::piped());
     let command_name = command.name.clone();
-    let cmd_handle = command_process
+    let mut cmd_handle = command_process
         .spawn()
         .unwrap_or_else(|_| panic!("Unable to spawn process: {}", command.command.clone()));
 
     thread::spawn(move || {
-        let std_out = cmd_handle.stdout;
+        let std_out = &mut cmd_handle.stdout;
 
-        if std_out.is_some() {
-            let mut buffered_stdout = BufReader::new(std_out.unwrap());
-            let mut line = String::new();
+        match std_out {
+            Some(output) => {
+                let mut buffered_stdout = BufReader::new(output);
+                let mut line = String::new();
 
-            let mut num_bytes_read = buffered_stdout
-                .read_line(&mut line)
-                .expect("Unable to read standard out");
-            while num_bytes_read != 0 {
-                println!("{}: {}", command_name, line);
-                line = String::new();
-                num_bytes_read = buffered_stdout
+                let mut num_bytes_read = buffered_stdout
                     .read_line(&mut line)
                     .expect("Unable to read standard out");
+                while num_bytes_read != 0 {
+                    print!("{}: {}", command_name, line);
+                    line = String::new();
+                    num_bytes_read = buffered_stdout
+                        .read_line(&mut line)
+                        .expect("Unable to read standard out");
+                }
             }
+            None => {}
         }
-    });
+
+        let exit_status = cmd_handle.wait();
+        match exit_status {
+            Ok(status) => println!(
+                "currant: process {} exited with status {}",
+                command_name, status
+            ),
+            Err(e) => panic!("Unable to wait for child process {}", e),
+        }
+    })
 }
