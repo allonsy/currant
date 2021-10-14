@@ -1,5 +1,7 @@
+use std::fs;
 use std::io::BufRead;
 use std::io::BufReader;
+use std::io::Write;
 use std::process;
 use std::thread;
 
@@ -7,6 +9,12 @@ pub struct Command {
     name: String,
     command: String,
     args: Vec<String>,
+    output: Output,
+}
+
+pub enum Output {
+    Stdout,
+    File(fs::File),
 }
 
 pub struct CommandHandle {
@@ -22,11 +30,12 @@ impl CommandHandle {
 }
 
 impl Command {
-    pub fn new(name: String, command: String, args: Vec<String>) -> Command {
+    pub fn new(name: String, command: String, args: Vec<String>, output: Output) -> Command {
         Command {
             name,
             command,
             args,
+            output,
         }
     }
 }
@@ -35,7 +44,7 @@ pub fn run_commands(commands: Vec<Command>) -> CommandHandle {
     let handle = thread::spawn(|| {
         let mut handles = Vec::new();
         for cmd in commands {
-            handles.push(run_command(&cmd));
+            handles.push(run_command(cmd));
         }
 
         for handle in handles {
@@ -48,7 +57,7 @@ pub fn run_commands(commands: Vec<Command>) -> CommandHandle {
     CommandHandle { handle }
 }
 
-pub fn run_command(command: &Command) -> thread::JoinHandle<()> {
+pub fn run_command(command: Command) -> thread::JoinHandle<()> {
     let mut command_process = process::Command::new(&command.command);
     command_process.args(&command.args);
     command_process.stdout(process::Stdio::piped());
@@ -58,6 +67,7 @@ pub fn run_command(command: &Command) -> thread::JoinHandle<()> {
         .unwrap_or_else(|_| panic!("Unable to spawn process: {}", command.command.clone()));
 
     thread::spawn(move || {
+        let mut command = command;
         let std_out = &mut cmd_handle.stdout;
 
         match std_out {
@@ -69,11 +79,27 @@ pub fn run_command(command: &Command) -> thread::JoinHandle<()> {
                     .read_line(&mut line)
                     .expect("Unable to read standard out");
                 while num_bytes_read != 0 {
-                    print!("{}: {}", command_name, line);
+                    match command.output {
+                        Output::Stdout => {
+                            print!("{}: {}", command_name, line);
+                        }
+                        Output::File(ref mut file) => {
+                            file.write(line.as_bytes())
+                                .unwrap_or_else(|_| panic!("Unable to write to file!"));
+                        }
+                    }
                     line = String::new();
                     num_bytes_read = buffered_stdout
                         .read_line(&mut line)
                         .expect("Unable to read standard out");
+                }
+
+                match command.output {
+                    Output::Stdout => {}
+                    Output::File(ref mut file) => {
+                        file.flush()
+                            .unwrap_or_else(|_| panic!("unable to flush file!"));
+                    }
                 }
             }
             None => {}
