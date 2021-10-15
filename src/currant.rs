@@ -3,22 +3,45 @@ use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Write;
 use std::process;
+use std::sync::mpsc;
 use std::thread;
 
 pub struct Command {
     name: String,
     command: String,
     args: Vec<String>,
-    output: Output,
+    output: OutputType,
 }
 
-pub enum Output {
+pub enum OutputType {
     Stdout,
+    Channel,
     File(fs::File),
+}
+
+impl OutputType {
+    fn is_channel(&self) -> bool {
+        match self {
+            OutputType::Channel => true,
+            _ => false,
+        }
+    }
+}
+
+pub struct OutputMessage {
+    pub name: String,
+    pub message: OutputMessagePayload,
+}
+
+pub enum OutputMessagePayload {
+    Done(Option<i32>),
+    Stdout(String),
+    Stderr(String),
 }
 
 pub struct CommandHandle {
     handle: thread::JoinHandle<()>,
+    channel: mpsc::Receiver<OutputMessage>,
 }
 
 impl CommandHandle {
@@ -27,10 +50,14 @@ impl CommandHandle {
             .join()
             .unwrap_or_else(|_| panic!("Unable to join on handle"));
     }
+
+    pub fn get_output_channel(&self) -> &mpsc::Receiver<OutputMessage> {
+        &self.channel
+    }
 }
 
 impl Command {
-    pub fn new(name: String, command: String, args: Vec<String>, output: Output) -> Command {
+    pub fn new(name: String, command: String, args: Vec<String>, output: OutputType) -> Command {
         Command {
             name,
             command,
@@ -41,10 +68,12 @@ impl Command {
 }
 
 pub fn run_commands(commands: Vec<Command>) -> CommandHandle {
-    let handle = thread::spawn(|| {
+    let (send, recv) = mpsc::channel();
+
+    let handle = thread::spawn(move || {
         let mut handles = Vec::new();
         for cmd in commands {
-            handles.push(run_command(cmd));
+            handles.push(run_command(cmd, send.clone()));
         }
 
         for handle in handles {
@@ -54,10 +83,16 @@ pub fn run_commands(commands: Vec<Command>) -> CommandHandle {
         }
     });
 
-    CommandHandle { handle }
+    CommandHandle {
+        handle,
+        channel: recv,
+    }
 }
 
-pub fn run_command(command: Command) -> thread::JoinHandle<()> {
+pub fn run_command(
+    command: Command,
+    send_chan: mpsc::Sender<OutputMessage>,
+) -> thread::JoinHandle<()> {
     let mut command_process = process::Command::new(&command.command);
     command_process.args(&command.args);
     command_process.stdout(process::Stdio::piped());
@@ -80,12 +115,20 @@ pub fn run_command(command: Command) -> thread::JoinHandle<()> {
                     .expect("Unable to read standard out");
                 while num_bytes_read != 0 {
                     match command.output {
-                        Output::Stdout => {
+                        OutputType::Stdout => {
                             print!("{}: {}", command_name, line);
                         }
-                        Output::File(ref mut file) => {
-                            file.write(line.as_bytes())
+                        OutputType::File(ref mut file) => {
+                            file.write_all(line.as_bytes())
                                 .unwrap_or_else(|_| panic!("Unable to write to file!"));
+                        }
+                        OutputType::Channel => {
+                            send_chan
+                                .send(OutputMessage {
+                                    name: command_name.clone(),
+                                    message: OutputMessagePayload::Stdout(line.clone()),
+                                })
+                                .unwrap_or_else(|_| panic!("Unable to send to channel"));
                         }
                     }
                     line = String::new();
@@ -95,22 +138,34 @@ pub fn run_command(command: Command) -> thread::JoinHandle<()> {
                 }
 
                 match command.output {
-                    Output::Stdout => {}
-                    Output::File(ref mut file) => {
+                    OutputType::Stdout => {}
+                    OutputType::File(ref mut file) => {
                         file.flush()
                             .unwrap_or_else(|_| panic!("unable to flush file!"));
                     }
+                    OutputType::Channel => {}
                 }
             }
             None => {}
         }
 
         let exit_status = cmd_handle.wait();
+
+        if command.output.is_channel() {}
         match exit_status {
-            Ok(status) => println!(
-                "currant: process {} exited with status {}",
-                command_name, status
-            ),
+            Ok(status) => match command.output {
+                OutputType::Stdout => println!(
+                    "currant: process {} exited with status {}",
+                    command_name, status
+                ),
+                OutputType::Channel => send_chan
+                    .send(OutputMessage {
+                        name: command_name.clone(),
+                        message: OutputMessagePayload::Done(status.code()),
+                    })
+                    .unwrap_or_else(|_| panic!("Unable to send to channel")),
+                _ => {}
+            },
             Err(e) => panic!("Unable to wait for child process {}", e),
         }
     })
