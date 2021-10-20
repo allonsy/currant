@@ -1,7 +1,7 @@
-use std::fs;
+use super::line_parse;
+use std::io;
 use std::io::BufRead;
 use std::io::BufReader;
-use std::io::Write;
 use std::process;
 use std::sync::mpsc;
 use std::thread;
@@ -10,22 +10,6 @@ pub struct Command {
     name: String,
     command: String,
     args: Vec<String>,
-    output: OutputType,
-}
-
-pub enum OutputType {
-    Stdout,
-    Channel,
-    File(fs::File),
-}
-
-impl OutputType {
-    fn is_channel(&self) -> bool {
-        match self {
-            OutputType::Channel => true,
-            _ => false,
-        }
-    }
 }
 
 pub struct OutputMessage {
@@ -35,8 +19,9 @@ pub struct OutputMessage {
 
 pub enum OutputMessagePayload {
     Done(Option<i32>),
-    Stdout(String),
-    Stderr(String),
+    Stdout(line_parse::LineEnding, Vec<u8>),
+    Stderr(line_parse::LineEnding, Vec<u8>),
+    Error(io::Error),
 }
 
 pub struct CommandHandle {
@@ -57,12 +42,11 @@ impl CommandHandle {
 }
 
 impl Command {
-    pub fn new(name: String, command: String, args: Vec<String>, output: OutputType) -> Command {
+    pub fn new(name: String, command: String, args: Vec<String>) -> Command {
         Command {
             name,
             command,
             args,
-            output,
         }
     }
 }
@@ -102,71 +86,85 @@ pub fn run_command(
         .unwrap_or_else(|_| panic!("Unable to spawn process: {}", command.command.clone()));
 
     thread::spawn(move || {
-        let mut command = command;
-        let std_out = &mut cmd_handle.stdout;
+        let std_out = cmd_handle.stdout.take();
+        let std_err = cmd_handle.stderr.take();
+        let mut std_out_handle = None;
+        let mut std_err_handle = None;
 
-        match std_out {
-            Some(output) => {
-                let mut buffered_stdout = BufReader::new(output);
-                let mut line = String::new();
+        if let Some(output) = std_out {
+            let mut buffered_stdout = BufReader::new(output);
+            let new_name = command_name.clone();
+            let new_chan = send_chan.clone();
+            std_out_handle = Some(thread::spawn(move || {
+                read_stream(new_name, new_chan, &mut buffered_stdout, true);
+            }));
+        }
 
-                let mut num_bytes_read = buffered_stdout
-                    .read_line(&mut line)
-                    .expect("Unable to read standard out");
-                while num_bytes_read != 0 {
-                    match command.output {
-                        OutputType::Stdout => {
-                            print!("{}: {}", command_name, line);
-                        }
-                        OutputType::File(ref mut file) => {
-                            file.write_all(line.as_bytes())
-                                .unwrap_or_else(|_| panic!("Unable to write to file!"));
-                        }
-                        OutputType::Channel => {
-                            send_chan
-                                .send(OutputMessage {
-                                    name: command_name.clone(),
-                                    message: OutputMessagePayload::Stdout(line.clone()),
-                                })
-                                .unwrap_or_else(|_| panic!("Unable to send to channel"));
-                        }
-                    }
-                    line = String::new();
-                    num_bytes_read = buffered_stdout
-                        .read_line(&mut line)
-                        .expect("Unable to read standard out");
-                }
+        if let Some(output) = std_err {
+            let mut buffered_stdout = BufReader::new(output);
+            let new_name = command_name.clone();
+            let new_chan = send_chan.clone();
+            std_err_handle = Some(thread::spawn(move || {
+                read_stream(new_name, new_chan, &mut buffered_stdout, false);
+            }));
+        }
 
-                match command.output {
-                    OutputType::Stdout => {}
-                    OutputType::File(ref mut file) => {
-                        file.flush()
-                            .unwrap_or_else(|_| panic!("unable to flush file!"));
-                    }
-                    OutputType::Channel => {}
-                }
-            }
-            None => {}
+        if let Some(handle) = std_out_handle {
+            let _ = handle.join();
+        }
+
+        if let Some(handle) = std_err_handle {
+            let _ = handle.join();
         }
 
         let exit_status = cmd_handle.wait();
-
-        if command.output.is_channel() {}
         match exit_status {
-            Ok(status) => match command.output {
-                OutputType::Stdout => println!(
-                    "currant: process {} exited with status {}",
-                    command_name, status
-                ),
-                OutputType::Channel => send_chan
-                    .send(OutputMessage {
-                        name: command_name.clone(),
-                        message: OutputMessagePayload::Done(status.code()),
-                    })
-                    .unwrap_or_else(|_| panic!("Unable to send to channel")),
-                _ => {}
-            },
-            Err(e) => panic!("Unable to wait for child process {}", e),
+            Ok(status) => {
+                let _ = send_chan.send(OutputMessage {
+                    name: command_name.clone(),
+                    message: OutputMessagePayload::Done(status.code()),
+                });
+            }
+            Err(e) => {
+                let _ = send_chan.send(OutputMessage {
+                    name: command_name.clone(),
+                    message: OutputMessagePayload::Error(e),
+                });
+            }
         }
     })
+}
+
+fn read_stream<R>(
+    cmd_name: String,
+    send_chan: mpsc::Sender<OutputMessage>,
+    reader: &mut R,
+    is_stdout: bool,
+) where
+    R: BufRead,
+{
+    loop {
+        let line = line_parse::get_line(reader);
+        match line {
+            Ok(Some(line_vec)) => {
+                let _ = send_chan.send(OutputMessage {
+                    name: cmd_name.clone(),
+                    message: if is_stdout {
+                        OutputMessagePayload::Stdout(line_vec.0, line_vec.1)
+                    } else {
+                        OutputMessagePayload::Stderr(line_vec.0, line_vec.1)
+                    },
+                });
+            }
+            Ok(None) => {
+                return;
+            }
+            Err(e) => {
+                let _ = send_chan.send(OutputMessage {
+                    name: cmd_name.clone(),
+                    message: OutputMessagePayload::Error(e),
+                });
+            }
+        }
+    }
 }
