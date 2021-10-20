@@ -42,16 +42,34 @@ impl CommandHandle {
 }
 
 impl Command {
-    pub fn new(name: String, command: String, args: Vec<String>) -> Command {
+    pub fn new<S, C, ArgType, Cmds>(name: S, command: C, args: Cmds) -> Command
+    where
+        S: AsRef<str>,
+        C: AsRef<str>,
+        ArgType: AsRef<str>,
+        Cmds: IntoIterator<Item = ArgType>,
+    {
+        let converted_args = args
+            .into_iter()
+            .map(|s| s.as_ref().to_string())
+            .collect::<Vec<String>>();
         Command {
-            name,
-            command,
-            args,
+            name: name.as_ref().to_string(),
+            command: command.as_ref().to_string(),
+            args: converted_args,
         }
     }
 }
 
-pub fn run_commands(commands: Vec<Command>) -> CommandHandle {
+pub fn run_commands<Cmds>(commands: Cmds) -> CommandHandle
+where
+    Cmds: IntoIterator<Item = Command>,
+{
+    let actual_cmds = commands.into_iter().collect::<Vec<Command>>();
+    run_commands_internal(actual_cmds)
+}
+
+fn run_commands_internal(commands: Vec<Command>) -> CommandHandle {
     let (send, recv) = mpsc::channel();
 
     let handle = thread::spawn(move || {

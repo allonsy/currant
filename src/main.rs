@@ -3,21 +3,9 @@ mod line_parse;
 
 fn main() {
     let commands = vec![
-        currant::Command::new(
-            "lscur".to_string(),
-            "ls".to_string(),
-            vec!["-l".to_string(), ".".to_string()],
-        ),
-        currant::Command::new(
-            "lspar".to_string(),
-            "ls".to_string(),
-            vec!["-l".to_string(), "..".to_string()],
-        ),
-        currant::Command::new(
-            "lsparpar".to_string(),
-            "ls".to_string(),
-            vec!["-l".to_string(), "../..".to_string()],
-        ),
+        currant::Command::new("lscur", "ls", vec!["-l", "."]),
+        currant::Command::new("lspar", "ls", vec!["-l", ".."]),
+        currant::Command::new("lsparpar", "ls", vec!["-l", "../.."]),
     ];
 
     let handle = currant::run_commands(commands);
