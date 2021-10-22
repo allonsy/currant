@@ -12,6 +12,26 @@ pub struct Command {
     args: Vec<String>,
 }
 
+impl Command {
+    pub fn new<S, C, ArgType, Cmds>(name: S, command: C, args: Cmds) -> Command
+    where
+        S: AsRef<str>,
+        C: AsRef<str>,
+        ArgType: AsRef<str>,
+        Cmds: IntoIterator<Item = ArgType>,
+    {
+        let converted_args = args
+            .into_iter()
+            .map(|s| s.as_ref().to_string())
+            .collect::<Vec<String>>();
+        Command {
+            name: name.as_ref().to_string(),
+            command: command.as_ref().to_string(),
+            args: converted_args,
+        }
+    }
+}
+
 pub struct OutputMessage {
     pub name: String,
     pub message: OutputMessagePayload,
@@ -41,47 +61,49 @@ impl CommandHandle {
     }
 }
 
-impl Command {
-    pub fn new<S, C, ArgType, Cmds>(name: S, command: C, args: Cmds) -> Command
-    where
-        S: AsRef<str>,
-        C: AsRef<str>,
-        ArgType: AsRef<str>,
-        Cmds: IntoIterator<Item = ArgType>,
-    {
-        let converted_args = args
-            .into_iter()
-            .map(|s| s.as_ref().to_string())
-            .collect::<Vec<String>>();
-        Command {
-            name: name.as_ref().to_string(),
-            command: command.as_ref().to_string(),
-            args: converted_args,
+#[derive(Clone)]
+pub enum RestartOptions {
+    Continue,
+    Restart,
+    Kill,
+}
+
+#[derive(Clone)]
+pub struct Options {
+    restart: RestartOptions,
+}
+
+impl Options {
+    pub fn new() -> Options {
+        Options {
+            restart: RestartOptions::Continue,
         }
+    }
+
+    pub fn restart(&mut self, restart: RestartOptions) {
+        self.restart = restart;
     }
 }
 
-pub fn run_commands<Cmds>(commands: Cmds) -> CommandHandle
+pub fn run_commands<Cmds>(commands: Cmds, options: Options) -> CommandHandle
 where
     Cmds: IntoIterator<Item = Command>,
 {
     let actual_cmds = commands.into_iter().collect::<Vec<Command>>();
-    run_commands_internal(actual_cmds)
+    run_commands_internal(actual_cmds, options)
 }
 
-fn run_commands_internal(commands: Vec<Command>) -> CommandHandle {
+fn run_commands_internal(commands: Vec<Command>, options: Options) -> CommandHandle {
     let (send, recv) = mpsc::channel();
 
     let handle = thread::spawn(move || {
         let mut handles = Vec::new();
         for cmd in commands {
-            handles.push(run_command(cmd, send.clone()));
+            handles.push(run_command(cmd, send.clone(), options.clone()));
         }
 
         for handle in handles {
-            handle
-                .join()
-                .unwrap_or_else(|_| panic!("Unable to join handle"));
+            let _ = handle.join();
         }
     });
 
@@ -94,16 +116,16 @@ fn run_commands_internal(commands: Vec<Command>) -> CommandHandle {
 pub fn run_command(
     command: Command,
     send_chan: mpsc::Sender<OutputMessage>,
+    options: Options,
 ) -> thread::JoinHandle<()> {
-    let mut command_process = process::Command::new(&command.command);
-    command_process.args(&command.args);
-    command_process.stdout(process::Stdio::piped());
-    let command_name = command.name.clone();
-    let mut cmd_handle = command_process
-        .spawn()
-        .unwrap_or_else(|_| panic!("Unable to spawn process: {}", command.command.clone()));
-
-    thread::spawn(move || {
+    thread::spawn(move || loop {
+        let mut command_process = process::Command::new(&command.command);
+        command_process.args(&command.args);
+        command_process.stdout(process::Stdio::piped());
+        let command_name = command.name.clone();
+        let mut cmd_handle = command_process
+            .spawn()
+            .unwrap_or_else(|_| panic!("Unable to spawn process: {}", command.command.clone()));
         let std_out = cmd_handle.stdout.take();
         let std_err = cmd_handle.stderr.take();
         let mut std_out_handle = None;
@@ -142,6 +164,20 @@ pub fn run_command(
                     name: command_name.clone(),
                     message: OutputMessagePayload::Done(status.code()),
                 });
+
+                match options.restart {
+                    RestartOptions::Continue => {
+                        break;
+                    }
+                    RestartOptions::Restart => {
+                        if status.success() {
+                            break;
+                        }
+                    }
+                    RestartOptions::Kill => {
+                        break;
+                    }
+                };
             }
             Err(e) => {
                 let _ = send_chan.send(OutputMessage {

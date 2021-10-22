@@ -8,7 +8,7 @@ fn main() {
         currant::Command::new("lsparpar", "ls", vec!["-l", "../.."]),
     ];
 
-    let handle = currant::run_commands(commands);
+    let handle = currant::run_commands(commands, currant::Options::new());
     let recv = handle.get_output_channel();
     let mut num_done = 0;
 
