@@ -1,11 +1,12 @@
-use super::line_parse;
+mod kill_barrier;
+mod line_parse;
+
 use std::io;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::process;
 use std::sync::mpsc;
 use std::sync::Arc;
-use std::sync::Condvar;
 use std::sync::Mutex;
 use std::thread;
 
@@ -50,6 +51,7 @@ pub enum OutputMessagePayload {
 pub struct CommandHandle {
     handle: thread::JoinHandle<()>,
     channel: mpsc::Receiver<OutputMessage>,
+    kill_trigger: kill_barrier::KillBarrier,
 }
 
 impl CommandHandle {
@@ -61,6 +63,10 @@ impl CommandHandle {
 
     pub fn get_output_channel(&self) -> &mpsc::Receiver<OutputMessage> {
         &self.channel
+    }
+
+    pub fn kill(&self) {
+        let _ = self.kill_trigger.initiate_kill();
     }
 }
 
@@ -98,20 +104,17 @@ where
 
 fn run_commands_internal(commands: Vec<Command>, options: Options) -> CommandHandle {
     let (send, recv) = mpsc::channel();
-    let is_dead = Arc::new(Mutex::new(false));
-    let condvar = Arc::new(Condvar::new());
+    let kill_trigger = kill_barrier::KillBarrier::new();
+    let kill_trigger_clone = kill_trigger.clone();
 
     let handle = thread::spawn(move || {
         let mut handles = Vec::new();
         for cmd in commands {
-            let is_dead_clone = is_dead.clone();
-            let condvar_clone = condvar.clone();
             handles.push(run_command(
                 cmd,
                 send.clone(),
                 options.clone(),
-                is_dead_clone,
-                condvar_clone,
+                kill_trigger_clone.clone(),
             ));
         }
 
@@ -123,6 +126,7 @@ fn run_commands_internal(commands: Vec<Command>, options: Options) -> CommandHan
     CommandHandle {
         handle,
         channel: recv,
+        kill_trigger,
     }
 }
 
@@ -130,8 +134,7 @@ pub fn run_command(
     command: Command,
     send_chan: mpsc::Sender<OutputMessage>,
     options: Options,
-    kill_mutex: Arc<Mutex<bool>>,
-    condvar: Arc<Condvar>,
+    kill_trigger: kill_barrier::KillBarrier,
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || loop {
         let mut command_process = process::Command::new(&command.command);
@@ -148,12 +151,9 @@ pub fn run_command(
 
         let shared_handle = Arc::new(Mutex::new(cmd_handle));
 
-        if let RestartOptions::Kill = options.restart {
-            let child_clone = shared_handle.clone();
-            let kill_mutex_clone = kill_mutex.clone();
-            let condvar_clone = condvar.clone();
-            thread::spawn(move || kill_thread(kill_mutex_clone, condvar_clone, child_clone));
-        }
+        let child_clone = shared_handle.clone();
+        let kill_trigger_clone = kill_trigger.clone();
+        thread::spawn(move || kill_thread(kill_trigger_clone, child_clone));
 
         if let Some(output) = std_out {
             let mut buffered_stdout = BufReader::new(output);
@@ -200,9 +200,7 @@ pub fn run_command(
                     }
                     RestartOptions::Kill => {
                         if !status.success() {
-                            let mut is_dead = kill_mutex.lock().unwrap();
-                            *is_dead = true;
-                            condvar.notify_one();
+                            let _ = kill_trigger.initiate_kill();
                         }
                         break;
                     }
@@ -218,23 +216,13 @@ pub fn run_command(
     })
 }
 
-fn kill_thread(
-    kill_mutex: Arc<Mutex<bool>>,
-    condvar: Arc<Condvar>,
-    child: Arc<Mutex<process::Child>>,
-) {
-    let mut is_dead = kill_mutex.lock().unwrap();
-
-    while !*is_dead {
-        is_dead = condvar.wait(is_dead).unwrap();
-    }
+fn kill_thread(kill_trigger: kill_barrier::KillBarrier, child: Arc<Mutex<process::Child>>) {
+    let _ = kill_trigger.wait();
 
     let lock_res = child.lock();
     if let Ok(mut locked_child) = lock_res {
         let _ = locked_child.kill();
     }
-
-    condvar.notify_one();
 }
 
 fn read_stream<R>(
