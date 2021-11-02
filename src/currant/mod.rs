@@ -1,5 +1,6 @@
 mod kill_barrier;
 mod line_parse;
+mod standard_out;
 
 use std::io;
 use std::io::BufRead;
@@ -9,6 +10,12 @@ use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
+
+pub use standard_out::parse_command_string;
+pub use standard_out::run_commands_stdout;
+pub use standard_out::run_commands_stdout_with_options;
+pub use standard_out::Color;
+pub use standard_out::StandardOutCommand;
 
 pub struct Command {
     name: String,
@@ -63,6 +70,23 @@ impl CommandHandle {
 
     pub fn get_output_channel(&self) -> &mpsc::Receiver<OutputMessage> {
         &self.channel
+    }
+
+    pub fn kill(&self) {
+        let _ = self.kill_trigger.initiate_kill();
+    }
+}
+
+pub struct ControlledCommandHandle {
+    handle: thread::JoinHandle<()>,
+    kill_trigger: kill_barrier::KillBarrier,
+}
+
+impl ControlledCommandHandle {
+    pub fn join(self) {
+        self.handle
+            .join()
+            .unwrap_or_else(|_| panic!("Unable to join on handle"));
     }
 
     pub fn kill(&self) {
