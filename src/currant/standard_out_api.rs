@@ -65,12 +65,12 @@ impl StandardOutCommand {
         }
     }
 
-    pub fn new_command_string<S, C>(name: S, commandString: C) -> StandardOutCommand
+    pub fn new_command_string<S, C>(name: S, command_string: C) -> StandardOutCommand
     where
         S: AsRef<str>,
         C: AsRef<str>,
     {
-        let (command, args) = parse_command_string(commandString);
+        let (command, args) = parse_command_string(command_string);
         StandardOutCommand {
             inner_command: Command::new(name, command, args),
             color: Color::Default,
@@ -79,14 +79,14 @@ impl StandardOutCommand {
 
     pub fn new_command_string_with_color<S, C>(
         name: S,
-        commandString: C,
+        command_string: C,
         color: Color,
     ) -> StandardOutCommand
     where
         S: AsRef<str>,
         C: AsRef<str>,
     {
-        let (command, args) = parse_command_string(commandString);
+        let (command, args) = parse_command_string(command_string);
         StandardOutCommand {
             inner_command: Command::new(name, command, args),
             color,

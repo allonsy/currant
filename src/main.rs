@@ -22,6 +22,6 @@ fn main() {
     let mut opts = currant::Options::new();
     opts.restart(currant::RestartOptions::Kill);
 
-    let handle = currant::run_commands_writer(commands, Box::new(outfile));
+    let handle = currant::run_commands_writer(commands, outfile);
     handle.join();
 }

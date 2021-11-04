@@ -7,22 +7,21 @@ use std::io::Write;
 use std::sync::mpsc;
 use std::thread;
 
-pub fn run_commands_writer<Cmds>(
-    commands: Cmds,
-    writer: Box<dyn Write + Send>,
-) -> ControlledCommandHandle
+pub fn run_commands_writer<Cmds, W>(commands: Cmds, writer: W) -> ControlledCommandHandle
 where
     Cmds: IntoIterator<Item = Command>,
+    W: Write + Send + 'static,
 {
     run_commands_writer_with_options(commands, writer, super::Options::new())
 }
 
-pub fn run_commands_writer_with_options<Cmds>(
+pub fn run_commands_writer_with_options<Cmds, W>(
     commands: Cmds,
-    writer: Box<dyn Write + Send>,
+    writer: W,
     options: Options,
 ) -> ControlledCommandHandle
 where
+    W: Write + Send + 'static,
     Cmds: IntoIterator<Item = Command>,
 {
     let handle = super::run_commands(commands, options);
@@ -38,7 +37,10 @@ where
     }
 }
 
-fn process_channel(chan: mpsc::Receiver<super::OutputMessage>, mut writer: Box<dyn Write + Send>) {
+fn process_channel<W>(chan: mpsc::Receiver<super::OutputMessage>, mut writer: W)
+where
+    W: Write + Send,
+{
     loop {
         let message = chan.recv();
         if message.is_err() {

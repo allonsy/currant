@@ -46,12 +46,12 @@ impl Command {
         }
     }
 
-    pub fn new_command_string<S, C>(name: S, commandString: C) -> Command
+    pub fn new_command_string<S, C>(name: S, command_string: C) -> Command
     where
         S: AsRef<str>,
         C: AsRef<str>,
     {
-        let (command, args) = parse_command_string(commandString);
+        let (command, args) = parse_command_string(command_string);
         Command {
             name: name.as_ref().to_string(),
             command,
