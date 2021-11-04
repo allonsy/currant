@@ -1,6 +1,7 @@
 mod kill_barrier;
 mod line_parse;
-mod standard_out;
+mod standard_out_api;
+mod writer_api;
 
 use std::io;
 use std::io::BufRead;
@@ -11,11 +12,14 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
 
-pub use standard_out::parse_command_string;
-pub use standard_out::run_commands_stdout;
-pub use standard_out::run_commands_stdout_with_options;
-pub use standard_out::Color;
-pub use standard_out::StandardOutCommand;
+pub use standard_out_api::parse_command_string;
+pub use standard_out_api::run_commands_stdout;
+pub use standard_out_api::run_commands_stdout_with_options;
+pub use standard_out_api::Color;
+pub use standard_out_api::StandardOutCommand;
+
+pub use writer_api::run_commands_writer;
+pub use writer_api::run_commands_writer_with_options;
 
 pub struct Command {
     name: String,
@@ -39,6 +43,19 @@ impl Command {
             name: name.as_ref().to_string(),
             command: command.as_ref().to_string(),
             args: converted_args,
+        }
+    }
+
+    pub fn new_command_string<S, C>(name: S, commandString: C) -> Command
+    where
+        S: AsRef<str>,
+        C: AsRef<str>,
+    {
+        let (command, args) = parse_command_string(commandString);
+        Command {
+            name: name.as_ref().to_string(),
+            command,
+            args,
         }
     }
 }
