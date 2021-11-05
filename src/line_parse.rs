@@ -9,10 +9,7 @@ pub enum LineEnding {
 
 impl LineEnding {
     pub fn is_carriage_return(&self) -> bool {
-        match self {
-            LineEnding::Cr => true,
-            _ => false,
-        }
+        matches!(self, LineEnding::Cr)
     }
 }
 

@@ -1,9 +1,12 @@
 [package]
 name = "currant"
+description = "A simple library to spawn concurrent shell processes in rust"
 version = "0.1.0"
 edition = "2018"
 license-file = "LICENSE"
 readme = "README.md"
+homepage = "https://github.com/allonsy/currant"
+repository = "https://github.com/allonsy/currant"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

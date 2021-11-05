@@ -135,6 +135,12 @@ impl Options {
     }
 }
 
+impl Default for Options {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub fn run_commands<Cmds>(commands: Cmds, options: Options) -> CommandHandle
 where
     Cmds: IntoIterator<Item = Command>,

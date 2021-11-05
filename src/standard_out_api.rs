@@ -1,11 +1,8 @@
-use super::line_parse::LineEnding;
 use super::Command;
 use super::ControlledCommandHandle;
 use super::Options;
 use super::OutputMessagePayload;
 
-use rand;
-use shell_words;
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::mpsc;
@@ -194,9 +191,9 @@ fn process_channel(
                 let mut prefix = format!("{} (o): ", message.name,).into_bytes();
                 prefix.append(&mut bytes);
                 if num_cmds == 1 && ending.is_carriage_return() {
-                    prefix.push('\r' as u8);
+                    prefix.push(b'\r');
                 } else {
-                    prefix.push('\n' as u8);
+                    prefix.push(b'\n');
                 }
                 stdout.write_all(&prefix)
             }
@@ -204,9 +201,9 @@ fn process_channel(
                 let mut prefix = format!("{} (e): ", message.name,).into_bytes();
                 prefix.append(&mut bytes);
                 if num_cmds == 1 && ending.is_carriage_return() {
-                    prefix.push('\r' as u8);
+                    prefix.push(b'\r');
                 } else {
-                    prefix.push('\n' as u8);
+                    prefix.push(b'\n');
                 }
                 stdout.write_all(&prefix)
             }

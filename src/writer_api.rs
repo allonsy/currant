@@ -62,13 +62,13 @@ where
             OutputMessagePayload::Stdout(_, mut bytes) => {
                 let mut prefix = format!("{} (o): ", message.name).into_bytes();
                 prefix.append(&mut bytes);
-                prefix.push('\n' as u8);
+                prefix.push(b'\n');
                 writer.write_all(&prefix)
             }
             OutputMessagePayload::Stderr(_, mut bytes) => {
                 let mut prefix = format!("{} (e): ", message.name).into_bytes();
                 prefix.append(&mut bytes);
-                prefix.push('\n' as u8);
+                prefix.push(b'\n');
                 writer.write_all(&prefix)
             }
             OutputMessagePayload::Error(e) => writer.write_all(

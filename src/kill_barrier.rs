@@ -49,6 +49,12 @@ impl KillBarrier {
     }
 }
 
+impl Default for KillBarrier {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Clone for KillBarrier {
     fn clone(&self) -> KillBarrier {
         KillBarrier {
