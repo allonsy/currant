@@ -1,8 +1,10 @@
+use super::line_parse::LineEnding;
 use super::Command;
 use super::ControlledCommandHandle;
 use super::Options;
 use super::OutputMessagePayload;
 
+use rand;
 use shell_words;
 use std::collections::HashMap;
 use std::io::Write;
@@ -24,7 +26,20 @@ pub enum Color {
 
 impl Color {
     pub fn random() -> Color {
-        return Color::Black;
+        let rand_int: u32 = rand::random();
+        let chosen_variant = rand_int % 8;
+
+        match chosen_variant {
+            0 => Color::Red,
+            1 => Color::Green,
+            2 => Color::Yellow,
+            3 => Color::Blue,
+            4 => Color::Magenta,
+            5 => Color::Cyan,
+            6 => Color::White,
+            7 => Color::Black,
+            _ => panic!("Unable to generate random color"),
+        }
     }
 
     fn open_sequence(&self) -> Vec<u8> {
@@ -128,10 +143,12 @@ where
 {
     let mut name_color_hash = HashMap::new();
     let mut inner_commands = Vec::new();
+    let mut num_cmds = 0;
 
     for cmd in commands {
         name_color_hash.insert(cmd.inner_command.name.to_string(), cmd.color.clone());
         inner_commands.push(cmd.inner_command);
+        num_cmds += 1;
     }
 
     let handle = super::run_commands(inner_commands, options);
@@ -139,7 +156,7 @@ where
     let recv = handle.channel;
 
     thread::spawn(move || {
-        process_channel(recv, name_color_hash);
+        process_channel(recv, name_color_hash, num_cmds);
     });
     ControlledCommandHandle {
         handle: handle.handle,
@@ -147,7 +164,11 @@ where
     }
 }
 
-fn process_channel(chan: mpsc::Receiver<super::OutputMessage>, color_map: HashMap<String, Color>) {
+fn process_channel(
+    chan: mpsc::Receiver<super::OutputMessage>,
+    color_map: HashMap<String, Color>,
+    num_cmds: usize,
+) {
     loop {
         let message = chan.recv();
         if message.is_err() {
@@ -156,30 +177,47 @@ fn process_channel(chan: mpsc::Receiver<super::OutputMessage>, color_map: HashMa
 
         let message = message.unwrap();
         let output_color = color_map.get(&message.name).unwrap();
-        let _ = std::io::stdout().write_all(&output_color.open_sequence());
-        match message.message {
-            OutputMessagePayload::Done(Some(exit_status)) => println!(
-                "{}: process exited with status: {}",
-                message.name, exit_status
+        let mut stdout = std::io::stdout();
+        let _ = stdout.write_all(&output_color.open_sequence());
+        let _ = match message.message {
+            OutputMessagePayload::Done(Some(exit_status)) => stdout.write_all(
+                format!(
+                    "{}: process exited with status: {}\n",
+                    message.name, exit_status
+                )
+                .as_bytes(),
             ),
-            OutputMessagePayload::Done(None) => {
-                println!("{}: process exited without exit status", message.name)
+            OutputMessagePayload::Done(None) => stdout.write_all(
+                format!("{}: process exited without exit status\n", message.name).as_bytes(),
+            ),
+            OutputMessagePayload::Stdout(ending, mut bytes) => {
+                let mut prefix = format!("{} (o): ", message.name,).into_bytes();
+                prefix.append(&mut bytes);
+                if num_cmds == 1 && ending.is_carriage_return() {
+                    prefix.push('\r' as u8);
+                } else {
+                    prefix.push('\n' as u8);
+                }
+                stdout.write_all(&prefix)
             }
-            OutputMessagePayload::Stdout(_, bytes) => println!(
-                "{} (o): {}",
-                message.name,
-                String::from_utf8(bytes).unwrap()
+            OutputMessagePayload::Stderr(ending, mut bytes) => {
+                let mut prefix = format!("{} (e): ", message.name,).into_bytes();
+                prefix.append(&mut bytes);
+                if num_cmds == 1 && ending.is_carriage_return() {
+                    prefix.push('\r' as u8);
+                } else {
+                    prefix.push('\n' as u8);
+                }
+                stdout.write_all(&prefix)
+            }
+            OutputMessagePayload::Error(e) => stdout.write_all(
+                format!(
+                    "currant (e): Encountered error with process {}: {}\n",
+                    message.name, e
+                )
+                .as_bytes(),
             ),
-            OutputMessagePayload::Stderr(_, bytes) => println!(
-                "{} (e): {}",
-                message.name,
-                String::from_utf8(bytes).unwrap()
-            ),
-            OutputMessagePayload::Error(e) => println!(
-                "currant (e): Encountered error with process {}: {}",
-                message.name, e
-            ),
-        }
+        };
 
         let _ = std::io::stdout().write_all(&output_color.close_sequence());
     }

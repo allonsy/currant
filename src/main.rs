@@ -1,27 +1,27 @@
 mod currant;
 
-use std::fs::File;
-
 fn main() {
-    let outfile = File::create("output.txt").unwrap();
     let commands = vec![
-        currant::Command::new_command_string(
+        currant::StandardOutCommand::new_command_string_with_color(
             "test1",
-            "/home/alecsnyder/Projects/git/github.com/allonsy/currant/test1.sh",
+            "ls -la .",
+            currant::Color::Blue,
         ),
-        currant::Command::new_command_string(
+        currant::StandardOutCommand::new_command_string_with_color(
             "test2",
-            "/home/alecsnyder/Projects/git/github.com/allonsy/currant/test2.sh",
+            "ls -la ..",
+            currant::Color::Red,
         ),
-        currant::Command::new_command_string(
+        currant::StandardOutCommand::new_command_string_with_color(
             "test3",
-            "/home/alecsnyder/Projects/git/github.com/allonsy/currant/test3.sh",
+            "ls -la ../..",
+            currant::Color::Green,
         ),
     ];
 
     let mut opts = currant::Options::new();
     opts.restart(currant::RestartOptions::Kill);
 
-    let handle = currant::run_commands_writer(commands, outfile);
+    let handle = currant::run_commands_stdout(commands);
     handle.join();
 }

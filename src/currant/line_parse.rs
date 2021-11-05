@@ -7,6 +7,15 @@ pub enum LineEnding {
     Crlf,
 }
 
+impl LineEnding {
+    pub fn is_carriage_return(&self) -> bool {
+        match self {
+            LineEnding::Cr => true,
+            _ => false,
+        }
+    }
+}
+
 pub fn get_line<R>(reader: &mut R) -> io::Result<Option<(LineEnding, Vec<u8>)>>
 where
     R: BufRead,
