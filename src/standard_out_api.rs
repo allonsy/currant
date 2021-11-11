@@ -3,6 +3,7 @@ use super::ControlledCommandHandle;
 use super::Options;
 use super::OutputMessagePayload;
 
+use rand::seq::SliceRandom;
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::mpsc;
@@ -22,6 +23,16 @@ pub enum Color {
 }
 
 impl Color {
+    fn get_color_list() -> Vec<Color> {
+        vec![
+            Color::Red,
+            Color::Green,
+            Color::Yellow,
+            Color::Blue,
+            Color::Magenta,
+            Color::Cyan,
+        ]
+    }
     pub fn random() -> Color {
         let rand_int: u32 = rand::random();
         let chosen_variant = rand_int % 8;
@@ -37,6 +48,19 @@ impl Color {
             7 => Color::Black,
             _ => panic!("Unable to generate random color"),
         }
+    }
+
+    pub fn random_color_list(num_colors: usize) -> Vec<Color> {
+        let mut colors = Color::get_color_list();
+        let mut rng = rand::thread_rng();
+        colors.shuffle(&mut rng);
+
+        while colors.len() < num_colors {
+            let mut new_colors = colors.clone();
+            colors.append(&mut new_colors);
+        }
+
+        colors.into_iter().take(num_colors).collect()
     }
 
     fn open_sequence(&self) -> String {
