@@ -1,4 +1,4 @@
-mod currant;
+use currant;
 
 fn main() {
     let commands = vec![

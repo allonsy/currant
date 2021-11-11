@@ -39,22 +39,23 @@ impl Color {
         }
     }
 
-    fn open_sequence(&self) -> Vec<u8> {
+    fn open_sequence(&self) -> String {
         match self {
-            Color::Default => Vec::new(),
-            Color::Black => vec![27, 91, 48, 59, 51, 48, 109],
-            Color::Red => vec![27, 91, 48, 59, 51, 49, 109],
-            Color::Green => vec![27, 91, 48, 59, 51, 50, 109],
-            Color::Yellow => vec![27, 91, 48, 59, 51, 51, 109],
-            Color::Blue => vec![27, 91, 48, 59, 51, 52, 109],
-            Color::Magenta => vec![27, 91, 48, 59, 51, 53, 109],
-            Color::Cyan => vec![27, 91, 48, 59, 51, 54, 109],
-            Color::White => vec![27, 91, 48, 59, 51, 55, 109],
+            Color::Default => "",
+            Color::Black => "\x1b[30m",
+            Color::Red => "\x1b[31m",
+            Color::Green => "\x1b[32m",
+            Color::Yellow => "\x1b[33m",
+            Color::Blue => "\x1b[34m",
+            Color::Magenta => "\x1b[35m",
+            Color::Cyan => "\x1b[36m",
+            Color::White => "\x1b[37m",
         }
+        .to_string()
     }
 
-    fn close_sequence(&self) -> Vec<u8> {
-        vec![27, 91, 48, 109]
+    fn close_sequence(&self) -> String {
+        "\x1b[0m".to_string()
     }
 }
 
@@ -174,21 +175,38 @@ fn process_channel(
 
         let message = message.unwrap();
         let output_color = color_map.get(&message.name).unwrap();
+        let color_open_sequence = output_color.open_sequence();
+        let color_reset_sequence = output_color.close_sequence();
         let mut stdout = std::io::stdout();
-        let _ = stdout.write_all(&output_color.open_sequence());
+        let _ = stdout.write_all(color_open_sequence.as_bytes());
         let _ = match message.message {
+            OutputMessagePayload::Start => stdout.write_all(
+                format!(
+                    "{}SYSTEM: starting process {}{}\n",
+                    color_open_sequence, message.name, color_reset_sequence
+                )
+                .as_bytes(),
+            ),
             OutputMessagePayload::Done(Some(exit_status)) => stdout.write_all(
                 format!(
-                    "{}: process exited with status: {}\n",
-                    message.name, exit_status
+                    "{}{}:{} process exited with status: {}\n",
+                    color_open_sequence, message.name, color_reset_sequence, exit_status
                 )
                 .as_bytes(),
             ),
             OutputMessagePayload::Done(None) => stdout.write_all(
-                format!("{}: process exited without exit status\n", message.name).as_bytes(),
+                format!(
+                    "{}{}:{} process exited without exit status\n",
+                    color_open_sequence, message.name, color_reset_sequence
+                )
+                .as_bytes(),
             ),
             OutputMessagePayload::Stdout(ending, mut bytes) => {
-                let mut prefix = format!("{} (o): ", message.name,).into_bytes();
+                let mut prefix = format!(
+                    "{}{} (o):{} ",
+                    color_open_sequence, message.name, color_reset_sequence
+                )
+                .into_bytes();
                 prefix.append(&mut bytes);
                 if num_cmds == 1 && ending.is_carriage_return() {
                     prefix.push(b'\r');
@@ -198,7 +216,11 @@ fn process_channel(
                 stdout.write_all(&prefix)
             }
             OutputMessagePayload::Stderr(ending, mut bytes) => {
-                let mut prefix = format!("{} (e): ", message.name,).into_bytes();
+                let mut prefix = format!(
+                    "{}{} (e):{} ",
+                    color_open_sequence, message.name, color_reset_sequence
+                )
+                .into_bytes();
                 prefix.append(&mut bytes);
                 if num_cmds == 1 && ending.is_carriage_return() {
                     prefix.push(b'\r');
@@ -209,14 +231,12 @@ fn process_channel(
             }
             OutputMessagePayload::Error(e) => stdout.write_all(
                 format!(
-                    "currant (e): Encountered error with process {}: {}\n",
-                    message.name, e
+                    "{}SYSTEM (e): Encountered error with process {}: {}{}\n",
+                    color_open_sequence, message.name, e, color_reset_sequence
                 )
                 .as_bytes(),
             ),
         };
-
-        let _ = std::io::stdout().write_all(&output_color.close_sequence());
     }
 }
 
@@ -231,4 +251,31 @@ where
 
     let parsed_command = words.remove(0);
     (parsed_command, words)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::run_commands_stdout;
+    use super::Color;
+    use super::StandardOutCommand;
+    use crate::RestartOptions;
+
+    #[test]
+    fn run_commands() {
+        let commands = vec![
+            StandardOutCommand::new_command_string_with_color("test1", "ls -la .", Color::Blue),
+            StandardOutCommand::new_command_string_with_color("test2", "ls -la ..", Color::Red),
+            StandardOutCommand::new_command_string_with_color(
+                "test3",
+                "ls -la ../..",
+                Color::Green,
+            ),
+        ];
+
+        let mut opts = super::Options::new();
+        opts.restart(RestartOptions::Kill);
+
+        let handle = run_commands_stdout(commands);
+        handle.join();
+    }
 }

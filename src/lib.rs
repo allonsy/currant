@@ -66,6 +66,7 @@ pub struct OutputMessage {
 }
 
 pub enum OutputMessagePayload {
+    Start,
     Done(Option<i32>),
     Stdout(line_parse::LineEnding, Vec<u8>),
     Stderr(line_parse::LineEnding, Vec<u8>),
@@ -188,6 +189,12 @@ pub fn run_command(
         command_process.args(&command.args);
         command_process.stdout(process::Stdio::piped());
         let command_name = command.name.clone();
+
+        let _ = send_chan.send(OutputMessage {
+            name: command_name.clone(),
+            message: OutputMessagePayload::Start,
+        });
+
         let mut cmd_handle = command_process
             .spawn()
             .unwrap_or_else(|_| panic!("Unable to spawn process: {}", command.command.clone()));

@@ -49,6 +49,9 @@ where
 
         let message = message.unwrap();
         let _ = match message.message {
+            OutputMessagePayload::Start => {
+                writer.write_all(format!("SYSTEM: starting process: {}\n", message.name).as_bytes())
+            }
             OutputMessagePayload::Done(Some(exit_status)) => writer.write_all(
                 format!(
                     "{}: process exited with status: {}\n",
@@ -73,7 +76,7 @@ where
             }
             OutputMessagePayload::Error(e) => writer.write_all(
                 format!(
-                    "currant (e): Encountered error with process {}: {}\n",
+                    "SYSTEM (e): Encountered error with process {}: {}\n",
                     message.name, e
                 )
                 .as_bytes(),
