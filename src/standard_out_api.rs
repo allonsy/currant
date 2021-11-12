@@ -89,51 +89,65 @@ pub struct StandardOutCommand {
 }
 
 impl StandardOutCommand {
-    pub fn new<S, C, ArgType, Cmds>(name: S, command: C, args: Cmds) -> StandardOutCommand
+    pub fn new<S, C, ArgType, Cmds, D>(
+        name: S,
+        command: C,
+        args: Cmds,
+        cur_dir: Option<D>,
+    ) -> StandardOutCommand
     where
         S: AsRef<str>,
         C: AsRef<str>,
         ArgType: AsRef<str>,
         Cmds: IntoIterator<Item = ArgType>,
+        D: AsRef<str>,
     {
         StandardOutCommand {
-            inner_command: Command::new(name, command, args),
+            inner_command: Command::new(name, command, args, cur_dir),
             color: Color::Default,
         }
     }
 
-    pub fn new_command_string<S, C>(name: S, command_string: C) -> StandardOutCommand
+    pub fn new_command_string<S, C, D>(
+        name: S,
+        command_string: C,
+        cur_dir: Option<D>,
+    ) -> StandardOutCommand
     where
         S: AsRef<str>,
         C: AsRef<str>,
+        D: AsRef<str>,
     {
         let (command, args) = parse_command_string(command_string);
         StandardOutCommand {
-            inner_command: Command::new(name, command, args),
+            inner_command: Command::new(name, command, args, cur_dir),
             color: Color::Default,
         }
     }
 
-    pub fn new_command_string_with_color<S, C>(
+    pub fn new_command_string_with_color<S, C, D>(
         name: S,
         command_string: C,
+        cur_dir: Option<D>,
         color: Color,
     ) -> StandardOutCommand
     where
         S: AsRef<str>,
         C: AsRef<str>,
+        D: AsRef<str>,
     {
         let (command, args) = parse_command_string(command_string);
         StandardOutCommand {
-            inner_command: Command::new(name, command, args),
+            inner_command: Command::new(name, command, args, cur_dir),
             color,
         }
     }
 
-    pub fn new_with_color<S, C, ArgType, Cmds>(
+    pub fn new_with_color<S, C, ArgType, Cmds, D>(
         name: S,
         command: C,
         args: Cmds,
+        cur_dir: Option<D>,
         color: Color,
     ) -> StandardOutCommand
     where
@@ -141,9 +155,10 @@ impl StandardOutCommand {
         C: AsRef<str>,
         ArgType: AsRef<str>,
         Cmds: IntoIterator<Item = ArgType>,
+        D: AsRef<str>,
     {
         StandardOutCommand {
-            inner_command: Command::new(name, command, args),
+            inner_command: Command::new(name, command, args, cur_dir),
             color,
         }
     }
@@ -286,12 +301,24 @@ mod tests {
 
     #[test]
     fn run_commands() {
+        let dir: Option<String> = None;
         let commands = vec![
-            StandardOutCommand::new_command_string_with_color("test1", "ls -la .", Color::Blue),
-            StandardOutCommand::new_command_string_with_color("test2", "ls -la ..", Color::Red),
+            StandardOutCommand::new_command_string_with_color(
+                "test1",
+                "ls -la .",
+                dir.clone(),
+                Color::Blue,
+            ),
+            StandardOutCommand::new_command_string_with_color(
+                "test2",
+                "ls -la ..",
+                dir.clone(),
+                Color::Red,
+            ),
             StandardOutCommand::new_command_string_with_color(
                 "test3",
                 "ls -la ../..",
+                Some(".."),
                 Color::Green,
             ),
         ];

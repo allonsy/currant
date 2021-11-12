@@ -25,13 +25,20 @@ pub struct Command {
     name: String,
     command: String,
     args: Vec<String>,
+    cur_dir: Option<String>,
 }
 
 impl Command {
-    pub fn new<S, C, ArgType, Cmds>(name: S, command: C, args: Cmds) -> Command
+    pub fn new<S, C, ArgType, Cmds, D>(
+        name: S,
+        command: C,
+        args: Cmds,
+        cur_dir: Option<D>,
+    ) -> Command
     where
         S: AsRef<str>,
         C: AsRef<str>,
+        D: AsRef<str>,
         ArgType: AsRef<str>,
         Cmds: IntoIterator<Item = ArgType>,
     {
@@ -43,19 +50,22 @@ impl Command {
             name: name.as_ref().to_string(),
             command: command.as_ref().to_string(),
             args: converted_args,
+            cur_dir: cur_dir.map(|v| v.as_ref().to_string()),
         }
     }
 
-    pub fn new_command_string<S, C>(name: S, command_string: C) -> Command
+    pub fn new_command_string<S, C, D>(name: S, command_string: C, cur_dir: Option<D>) -> Command
     where
         S: AsRef<str>,
         C: AsRef<str>,
+        D: AsRef<str>,
     {
         let (command, args) = parse_command_string(command_string);
         Command {
             name: name.as_ref().to_string(),
             command,
             args,
+            cur_dir: cur_dir.map(|v| v.as_ref().to_string()),
         }
     }
 }
@@ -187,6 +197,9 @@ pub fn run_command(
     thread::spawn(move || loop {
         let mut command_process = process::Command::new(&command.command);
         command_process.args(&command.args);
+        if command.cur_dir.is_some() {
+            command_process.current_dir(command.cur_dir.clone().unwrap());
+        }
         command_process.stdout(process::Stdio::piped());
         let command_name = command.name.clone();
 
