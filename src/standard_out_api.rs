@@ -82,8 +82,13 @@ impl Color {
         }
     }
 
-    pub fn random_color_list() -> Vec<Self> {
-        unimplemented!("Not yet implemented");
+    pub fn random_color_list(num_cmds: usize) -> Vec<Self> {
+        let mut colors = Vec::new();
+        for _ in 0..num_cmds {
+            colors.push(Color::random());
+        }
+
+        colors
     }
 
     fn open_sequence(&self) -> String {
