@@ -1,4 +1,5 @@
 use super::Command;
+use super::CommandError;
 use super::ControlledCommandHandle;
 use super::Options;
 use super::OutputMessagePayload;
@@ -94,7 +95,7 @@ impl StandardOutCommand {
         command: C,
         args: Cmds,
         cur_dir: Option<D>,
-    ) -> StandardOutCommand
+    ) -> Result<StandardOutCommand, CommandError>
     where
         S: AsRef<str>,
         C: AsRef<str>,
@@ -102,27 +103,27 @@ impl StandardOutCommand {
         Cmds: IntoIterator<Item = ArgType>,
         D: AsRef<str>,
     {
-        StandardOutCommand {
-            inner_command: Command::new(name, command, args, cur_dir),
+        Ok(StandardOutCommand {
+            inner_command: Command::new(name, command, args, cur_dir)?,
             color: Color::Default,
-        }
+        })
     }
 
     pub fn new_command_string<S, C, D>(
         name: S,
         command_string: C,
         cur_dir: Option<D>,
-    ) -> StandardOutCommand
+    ) -> Result<StandardOutCommand, CommandError>
     where
         S: AsRef<str>,
         C: AsRef<str>,
         D: AsRef<str>,
     {
-        let (command, args) = parse_command_string(command_string);
-        StandardOutCommand {
-            inner_command: Command::new(name, command, args, cur_dir),
+        let (command, args) = parse_command_string(command_string)?;
+        Ok(StandardOutCommand {
+            inner_command: Command::new(name, command, args, cur_dir)?,
             color: Color::Default,
-        }
+        })
     }
 
     pub fn new_command_string_with_color<S, C, D>(
@@ -130,17 +131,17 @@ impl StandardOutCommand {
         command_string: C,
         cur_dir: Option<D>,
         color: Color,
-    ) -> StandardOutCommand
+    ) -> Result<StandardOutCommand, CommandError>
     where
         S: AsRef<str>,
         C: AsRef<str>,
         D: AsRef<str>,
     {
-        let (command, args) = parse_command_string(command_string);
-        StandardOutCommand {
-            inner_command: Command::new(name, command, args, cur_dir),
+        let (command, args) = parse_command_string(command_string)?;
+        Ok(StandardOutCommand {
+            inner_command: Command::new(name, command, args, cur_dir)?,
             color,
-        }
+        })
     }
 
     pub fn new_with_color<S, C, ArgType, Cmds, D>(
@@ -149,7 +150,7 @@ impl StandardOutCommand {
         args: Cmds,
         cur_dir: Option<D>,
         color: Color,
-    ) -> StandardOutCommand
+    ) -> Result<StandardOutCommand, CommandError>
     where
         S: AsRef<str>,
         C: AsRef<str>,
@@ -157,10 +158,10 @@ impl StandardOutCommand {
         Cmds: IntoIterator<Item = ArgType>,
         D: AsRef<str>,
     {
-        StandardOutCommand {
-            inner_command: Command::new(name, command, args, cur_dir),
+        Ok(StandardOutCommand {
+            inner_command: Command::new(name, command, args, cur_dir)?,
             color,
-        }
+        })
     }
 }
 
@@ -188,12 +189,15 @@ where
         num_cmds += 1;
     }
 
+    let verbose = options.verbose;
+    let file_handle_flags = options.file_handle_flags;
+
     let handle = super::run_commands(inner_commands, options);
 
     let recv = handle.channel;
 
     thread::spawn(move || {
-        process_channel(recv, name_color_hash, num_cmds);
+        process_channel(recv, name_color_hash, num_cmds, verbose, file_handle_flags);
     });
     ControlledCommandHandle {
         handle: handle.handle,
@@ -205,6 +209,8 @@ fn process_channel(
     chan: mpsc::Receiver<super::OutputMessage>,
     color_map: HashMap<String, Color>,
     num_cmds: usize,
+    verbose: bool,
+    file_handle_flags: bool,
 ) {
     loop {
         let message = chan.recv();
@@ -216,34 +222,54 @@ fn process_channel(
         let output_color = color_map.get(&message.name).unwrap();
         let color_open_sequence = output_color.open_sequence();
         let color_reset_sequence = output_color.close_sequence();
+        let std_out_flag = if file_handle_flags { "(o)" } else { "" };
+        let std_err_flag = if file_handle_flags { "(e)" } else { "" };
         let mut stdout = std::io::stdout();
         let _ = stdout.write_all(color_open_sequence.as_bytes());
         let _ = match message.message {
-            OutputMessagePayload::Start => stdout.write_all(
-                format!(
-                    "{}SYSTEM: starting process {}{}\n",
-                    color_open_sequence, message.name, color_reset_sequence
-                )
-                .as_bytes(),
-            ),
-            OutputMessagePayload::Done(Some(exit_status)) => stdout.write_all(
-                format!(
-                    "{}{}:{} process exited with status: {}\n",
-                    color_open_sequence, message.name, color_reset_sequence, exit_status
-                )
-                .as_bytes(),
-            ),
-            OutputMessagePayload::Done(None) => stdout.write_all(
-                format!(
-                    "{}{}:{} process exited without exit status\n",
-                    color_open_sequence, message.name, color_reset_sequence
-                )
-                .as_bytes(),
-            ),
+            OutputMessagePayload::Start => {
+                if verbose {
+                    stdout.write_all(
+                        format!(
+                            "{}SYSTEM: starting process {}{}\n",
+                            color_open_sequence, message.name, color_reset_sequence
+                        )
+                        .as_bytes(),
+                    )
+                } else {
+                    Ok(())
+                }
+            }
+            OutputMessagePayload::Done(Some(exit_status)) => {
+                if verbose {
+                    stdout.write_all(
+                        format!(
+                            "{}{}:{} process exited with status: {}\n",
+                            color_open_sequence, message.name, color_reset_sequence, exit_status
+                        )
+                        .as_bytes(),
+                    )
+                } else {
+                    Ok(())
+                }
+            }
+            OutputMessagePayload::Done(None) => {
+                if verbose {
+                    stdout.write_all(
+                        format!(
+                            "{}{}:{} process exited without exit status\n",
+                            color_open_sequence, message.name, color_reset_sequence
+                        )
+                        .as_bytes(),
+                    )
+                } else {
+                    Ok(())
+                }
+            }
             OutputMessagePayload::Stdout(ending, mut bytes) => {
                 let mut prefix = format!(
-                    "{}{} (o):{} ",
-                    color_open_sequence, message.name, color_reset_sequence
+                    "{}{} {}:{} ",
+                    color_open_sequence, message.name, std_out_flag, color_reset_sequence
                 )
                 .into_bytes();
                 prefix.append(&mut bytes);
@@ -256,8 +282,8 @@ fn process_channel(
             }
             OutputMessagePayload::Stderr(ending, mut bytes) => {
                 let mut prefix = format!(
-                    "{}{} (e):{} ",
-                    color_open_sequence, message.name, color_reset_sequence
+                    "{}{} {}:{} ",
+                    color_open_sequence, message.name, std_err_flag, color_reset_sequence
                 )
                 .into_bytes();
                 prefix.append(&mut bytes);
@@ -279,23 +305,24 @@ fn process_channel(
     }
 }
 
-pub fn parse_command_string<S>(command: S) -> (String, Vec<String>)
+pub fn parse_command_string<S>(command: S) -> Result<(String, Vec<String>), CommandError>
 where
     S: AsRef<str>,
 {
-    let mut words = shell_words::split(command.as_ref()).unwrap();
+    let mut words = shell_words::split(command.as_ref()).map_err(|_| CommandError::ParseError)?;
     if words.is_empty() {
-        panic!("Command string contains no command");
+        return Err(CommandError::EmptyCommand);
     }
 
     let parsed_command = words.remove(0);
-    (parsed_command, words)
+    Ok((parsed_command, words))
 }
 
 #[cfg(test)]
 mod tests {
     use super::run_commands_stdout;
     use super::Color;
+
     use super::StandardOutCommand;
     use crate::RestartOptions;
 
@@ -308,19 +335,22 @@ mod tests {
                 "ls -la .",
                 dir.clone(),
                 Color::Blue,
-            ),
+            )
+            .unwrap(),
             StandardOutCommand::new_command_string_with_color(
                 "test2",
                 "ls -la ..",
                 dir.clone(),
                 Color::Red,
-            ),
+            )
+            .unwrap(),
             StandardOutCommand::new_command_string_with_color(
                 "test3",
                 "ls -la ../..",
                 Some(".."),
                 Color::Green,
-            ),
+            )
+            .unwrap(),
         ];
 
         let mut opts = super::Options::new();

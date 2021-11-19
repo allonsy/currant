@@ -7,6 +7,7 @@ use std::io;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::process;
+use std::process::ExitStatus;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -21,6 +22,12 @@ pub use standard_out_api::StandardOutCommand;
 pub use writer_api::run_commands_writer;
 pub use writer_api::run_commands_writer_with_options;
 
+#[derive(Debug)]
+pub enum CommandError {
+    EmptyCommand,
+    ParseError,
+}
+
 pub struct Command {
     name: String,
     command: String,
@@ -34,7 +41,7 @@ impl Command {
         command: C,
         args: Cmds,
         cur_dir: Option<D>,
-    ) -> Command
+    ) -> Result<Command, CommandError>
     where
         S: AsRef<str>,
         C: AsRef<str>,
@@ -42,31 +49,38 @@ impl Command {
         ArgType: AsRef<str>,
         Cmds: IntoIterator<Item = ArgType>,
     {
+        if name.as_ref().is_empty() {
+            return Err(CommandError::EmptyCommand);
+        }
         let converted_args = args
             .into_iter()
             .map(|s| s.as_ref().to_string())
             .collect::<Vec<String>>();
-        Command {
+        Ok(Command {
             name: name.as_ref().to_string(),
             command: command.as_ref().to_string(),
             args: converted_args,
             cur_dir: cur_dir.map(|v| v.as_ref().to_string()),
-        }
+        })
     }
 
-    pub fn new_command_string<S, C, D>(name: S, command_string: C, cur_dir: Option<D>) -> Command
+    pub fn new_command_string<S, C, D>(
+        name: S,
+        command_string: C,
+        cur_dir: Option<D>,
+    ) -> Result<Command, CommandError>
     where
         S: AsRef<str>,
         C: AsRef<str>,
         D: AsRef<str>,
     {
-        let (command, args) = parse_command_string(command_string);
-        Command {
+        let (command, args) = parse_command_string(command_string)?;
+        Ok(Command {
             name: name.as_ref().to_string(),
             command,
             args,
             cur_dir: cur_dir.map(|v| v.as_ref().to_string()),
-        }
+        })
     }
 }
 
@@ -84,7 +98,7 @@ pub enum OutputMessagePayload {
 }
 
 pub struct CommandHandle {
-    handle: thread::JoinHandle<()>,
+    handle: thread::JoinHandle<Vec<Option<ExitStatus>>>,
     channel: mpsc::Receiver<OutputMessage>,
     kill_trigger: kill_barrier::KillBarrier,
 }
@@ -106,7 +120,7 @@ impl CommandHandle {
 }
 
 pub struct ControlledCommandHandle {
-    handle: thread::JoinHandle<()>,
+    handle: thread::JoinHandle<Vec<Option<ExitStatus>>>,
     kill_trigger: kill_barrier::KillBarrier,
 }
 
@@ -132,17 +146,29 @@ pub enum RestartOptions {
 #[derive(Clone)]
 pub struct Options {
     restart: RestartOptions,
+    verbose: bool,
+    file_handle_flags: bool,
 }
 
 impl Options {
     pub fn new() -> Options {
         Options {
             restart: RestartOptions::Continue,
+            verbose: true,
+            file_handle_flags: true,
         }
+    }
+
+    pub fn verbose(&mut self, verbose: bool) {
+        self.verbose = verbose;
     }
 
     pub fn restart(&mut self, restart: RestartOptions) {
         self.restart = restart;
+    }
+
+    pub fn file_handle_flags(&mut self, file_handle_flags: bool) {
+        self.file_handle_flags = file_handle_flags;
     }
 }
 
@@ -167,6 +193,7 @@ fn run_commands_internal(commands: Vec<Command>, options: Options) -> CommandHan
 
     let handle = thread::spawn(move || {
         let mut handles = Vec::new();
+        let mut statuses = Vec::new();
         for cmd in commands {
             handles.push(run_command(
                 cmd,
@@ -177,8 +204,10 @@ fn run_commands_internal(commands: Vec<Command>, options: Options) -> CommandHan
         }
 
         for handle in handles {
-            let _ = handle.join();
+            statuses.push(handle.join().unwrap_or(None));
         }
+
+        statuses
     });
 
     CommandHandle {
@@ -193,7 +222,7 @@ pub fn run_command(
     send_chan: mpsc::Sender<OutputMessage>,
     options: Options,
     kill_trigger: kill_barrier::KillBarrier,
-) -> thread::JoinHandle<()> {
+) -> thread::JoinHandle<Option<ExitStatus>> {
     thread::spawn(move || loop {
         let mut command_process = process::Command::new(&command.command);
         command_process.args(&command.args);
@@ -258,26 +287,27 @@ pub fn run_command(
 
                 match options.restart {
                     RestartOptions::Continue => {
-                        break;
+                        return Some(status);
                     }
                     RestartOptions::Restart => {
                         if status.success() {
-                            break;
+                            return Some(status);
                         }
                     }
                     RestartOptions::Kill => {
                         if !status.success() {
                             let _ = kill_trigger.initiate_kill();
                         }
-                        break;
+                        return Some(status);
                     }
                 };
             }
             Err(e) => {
                 let _ = send_chan.send(OutputMessage {
-                    name: command_name.clone(),
+                    name: command_name,
                     message: OutputMessagePayload::Error(e),
                 });
+                return None;
             }
         }
     })

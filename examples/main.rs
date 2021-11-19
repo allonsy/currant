@@ -8,19 +8,22 @@ fn main() {
             "ls -la .",
             dir.clone(),
             currant::Color::Blue,
-        ),
+        )
+        .unwrap(),
         currant::StandardOutCommand::new_command_string_with_color(
             "test2",
             "ls -la ..",
             dir.clone(),
             currant::Color::Red,
-        ),
+        )
+        .unwrap(),
         currant::StandardOutCommand::new_command_string_with_color(
             "test3",
             "ls -la ../..",
             dir,
             currant::Color::Green,
-        ),
+        )
+        .unwrap(),
     ];
 
     let mut opts = currant::Options::new();
