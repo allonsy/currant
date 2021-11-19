@@ -4,83 +4,104 @@ use super::ControlledCommandHandle;
 use super::Options;
 use super::OutputMessagePayload;
 
-use rand::seq::SliceRandom;
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::mpsc;
 use std::thread;
 
 #[derive(Clone)]
-pub enum Color {
-    Default,
-    Red,
-    Green,
-    Yellow,
-    Blue,
-    Magenta,
-    Cyan,
-    White,
-    Black,
+pub struct Color {
+    r: u8,
+    g: u8,
+    b: u8,
+    is_default: bool,
 }
 
 impl Color {
-    fn get_color_list() -> Vec<Color> {
-        vec![
-            Color::Red,
-            Color::Green,
-            Color::Yellow,
-            Color::Blue,
-            Color::Magenta,
-            Color::Cyan,
-        ]
-    }
-    pub fn random() -> Color {
-        let rand_int: u32 = rand::random();
-        let chosen_variant = rand_int % 8;
+    pub const RED: Self = Color {
+        r: 255,
+        g: 0,
+        b: 0,
+        is_default: false,
+    };
+    pub const GREEN: Self = Color {
+        r: 0,
+        g: 255,
+        b: 0,
+        is_default: false,
+    };
+    pub const YELLOW: Self = Color {
+        r: 255,
+        g: 255,
+        b: 0,
+        is_default: false,
+    };
+    pub const BLUE: Self = Color {
+        r: 0,
+        g: 0,
+        b: 255,
+        is_default: false,
+    };
+    pub const MAGENTA: Self = Color {
+        r: 255,
+        g: 0,
+        b: 255,
+        is_default: false,
+    };
+    pub const CYAN: Self = Color {
+        r: 0,
+        g: 255,
+        b: 255,
+        is_default: false,
+    };
+    pub const WHITE: Self = Color {
+        r: 255,
+        g: 255,
+        b: 255,
+        is_default: false,
+    };
+    pub const BLACK: Self = Color {
+        r: 0,
+        g: 0,
+        b: 0,
+        is_default: false,
+    };
+    pub const DEFAULT: Self = Color {
+        r: 0,
+        g: 0,
+        b: 0,
+        is_default: true,
+    };
 
-        match chosen_variant {
-            0 => Color::Red,
-            1 => Color::Green,
-            2 => Color::Yellow,
-            3 => Color::Blue,
-            4 => Color::Magenta,
-            5 => Color::Cyan,
-            6 => Color::White,
-            7 => Color::Black,
-            _ => panic!("Unable to generate random color"),
+    pub fn random() -> Self {
+        Color {
+            r: rand::random(),
+            g: rand::random(),
+            b: rand::random(),
+            is_default: false,
         }
     }
 
-    pub fn random_color_list(num_colors: usize) -> Vec<Color> {
-        let mut colors = Color::get_color_list();
-        let mut rng = rand::thread_rng();
-        colors.shuffle(&mut rng);
-
-        while colors.len() < num_colors {
-            let mut new_colors = colors.clone();
-            colors.append(&mut new_colors);
-        }
-
-        colors.into_iter().take(num_colors).collect()
+    pub fn random_color_list() -> Vec<Self> {
+        unimplemented!("Not yet implemented");
     }
 
     fn open_sequence(&self) -> String {
-        match self {
-            Color::Default => "",
-            Color::Black => "\x1b[30m",
-            Color::Red => "\x1b[31m",
-            Color::Green => "\x1b[32m",
-            Color::Yellow => "\x1b[33m",
-            Color::Blue => "\x1b[34m",
-            Color::Magenta => "\x1b[35m",
-            Color::Cyan => "\x1b[36m",
-            Color::White => "\x1b[37m",
+        if !self.is_default {
+            format!("\x1b[38;2;{};{};{}m", self.r, self.g, self.b)
+        } else {
+            self.close_sequence()
         }
-        .to_string()
     }
 
     fn close_sequence(&self) -> String {
         "\x1b[0m".to_string()
+    }
+}
+
+impl Default for Color {
+    fn default() -> Self {
+        Color::DEFAULT
     }
 }
 
@@ -105,7 +126,7 @@ impl StandardOutCommand {
     {
         Ok(StandardOutCommand {
             inner_command: Command::new(name, command, args, cur_dir)?,
-            color: Color::Default,
+            color: Color::DEFAULT,
         })
     }
 
@@ -122,7 +143,7 @@ impl StandardOutCommand {
         let (command, args) = parse_command_string(command_string)?;
         Ok(StandardOutCommand {
             inner_command: Command::new(name, command, args, cur_dir)?,
-            color: Color::Default,
+            color: Color::DEFAULT,
         })
     }
 
@@ -334,21 +355,21 @@ mod tests {
                 "test1",
                 "ls -la .",
                 dir.clone(),
-                Color::Blue,
+                Color::BLUE,
             )
             .unwrap(),
             StandardOutCommand::new_command_string_with_color(
                 "test2",
                 "ls -la ..",
                 dir.clone(),
-                Color::Red,
+                Color::RED,
             )
             .unwrap(),
             StandardOutCommand::new_command_string_with_color(
                 "test3",
                 "ls -la ../..",
                 Some(".."),
-                Color::Green,
+                Color::GREEN,
             )
             .unwrap(),
         ];

@@ -7,21 +7,21 @@ fn main() {
             "test1",
             "ls -la .",
             dir.clone(),
-            currant::Color::Blue,
+            currant::Color::BLUE,
         )
         .unwrap(),
         currant::StandardOutCommand::new_command_string_with_color(
             "test2",
             "ls -la ..",
             dir.clone(),
-            currant::Color::Red,
+            currant::Color::RED,
         )
         .unwrap(),
         currant::StandardOutCommand::new_command_string_with_color(
             "test3",
             "ls -la ../..",
             dir,
-            currant::Color::Green,
+            currant::Color::GREEN,
         )
         .unwrap(),
     ];
