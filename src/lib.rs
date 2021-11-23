@@ -1,3 +1,4 @@
+mod color;
 mod kill_barrier;
 mod line_parse;
 mod standard_out_api;
@@ -13,10 +14,10 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
 
+pub use color::Color;
 pub use standard_out_api::parse_command_string;
 pub use standard_out_api::run_commands_stdout;
 pub use standard_out_api::run_commands_stdout_with_options;
-pub use standard_out_api::Color;
 pub use standard_out_api::StandardOutCommand;
 
 pub use writer_api::run_commands_writer;

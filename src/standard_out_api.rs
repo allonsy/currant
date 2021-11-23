@@ -1,3 +1,5 @@
+use super::color;
+use super::color::Color;
 use super::Command;
 use super::CommandError;
 use super::ControlledCommandHandle;
@@ -8,107 +10,6 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::sync::mpsc;
 use std::thread;
-
-#[derive(Clone)]
-pub struct Color {
-    r: u8,
-    g: u8,
-    b: u8,
-    is_default: bool,
-}
-
-impl Color {
-    pub const RED: Self = Color {
-        r: 255,
-        g: 0,
-        b: 0,
-        is_default: false,
-    };
-    pub const GREEN: Self = Color {
-        r: 0,
-        g: 255,
-        b: 0,
-        is_default: false,
-    };
-    pub const YELLOW: Self = Color {
-        r: 255,
-        g: 255,
-        b: 0,
-        is_default: false,
-    };
-    pub const BLUE: Self = Color {
-        r: 0,
-        g: 0,
-        b: 255,
-        is_default: false,
-    };
-    pub const MAGENTA: Self = Color {
-        r: 255,
-        g: 0,
-        b: 255,
-        is_default: false,
-    };
-    pub const CYAN: Self = Color {
-        r: 0,
-        g: 255,
-        b: 255,
-        is_default: false,
-    };
-    pub const WHITE: Self = Color {
-        r: 255,
-        g: 255,
-        b: 255,
-        is_default: false,
-    };
-    pub const BLACK: Self = Color {
-        r: 0,
-        g: 0,
-        b: 0,
-        is_default: false,
-    };
-    pub const DEFAULT: Self = Color {
-        r: 0,
-        g: 0,
-        b: 0,
-        is_default: true,
-    };
-
-    pub fn random() -> Self {
-        Color {
-            r: rand::random(),
-            g: rand::random(),
-            b: rand::random(),
-            is_default: false,
-        }
-    }
-
-    pub fn random_color_list(num_cmds: usize) -> Vec<Self> {
-        let mut colors = Vec::new();
-        for _ in 0..num_cmds {
-            colors.push(Color::random());
-        }
-
-        colors
-    }
-
-    fn open_sequence(&self) -> String {
-        if !self.is_default {
-            format!("\x1b[38;2;{};{};{}m", self.r, self.g, self.b)
-        } else {
-            self.close_sequence()
-        }
-    }
-
-    fn close_sequence(&self) -> String {
-        "\x1b[0m".to_string()
-    }
-}
-
-impl Default for Color {
-    fn default() -> Self {
-        Color::DEFAULT
-    }
-}
 
 pub struct StandardOutCommand {
     inner_command: Command,
@@ -131,7 +32,7 @@ impl StandardOutCommand {
     {
         Ok(StandardOutCommand {
             inner_command: Command::new(name, command, args, cur_dir)?,
-            color: Color::DEFAULT,
+            color: Color::Random,
         })
     }
 
@@ -148,7 +49,7 @@ impl StandardOutCommand {
         let (command, args) = parse_command_string(command_string)?;
         Ok(StandardOutCommand {
             inner_command: Command::new(name, command, args, cur_dir)?,
-            color: Color::DEFAULT,
+            color: Color::Random,
         })
     }
 
@@ -214,6 +115,8 @@ where
         inner_commands.push(cmd.inner_command);
         num_cmds += 1;
     }
+
+    color::populate_random_colors(&mut name_color_hash);
 
     let verbose = options.verbose;
     let file_handle_flags = options.file_handle_flags;
@@ -347,7 +250,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::run_commands_stdout;
-    use super::Color;
 
     use super::StandardOutCommand;
     use crate::RestartOptions;
@@ -356,27 +258,9 @@ mod tests {
     fn run_commands() {
         let dir: Option<String> = None;
         let commands = vec![
-            StandardOutCommand::new_command_string_with_color(
-                "test1",
-                "ls -la .",
-                dir.clone(),
-                Color::BLUE,
-            )
-            .unwrap(),
-            StandardOutCommand::new_command_string_with_color(
-                "test2",
-                "ls -la ..",
-                dir.clone(),
-                Color::RED,
-            )
-            .unwrap(),
-            StandardOutCommand::new_command_string_with_color(
-                "test3",
-                "ls -la ../..",
-                Some(".."),
-                Color::GREEN,
-            )
-            .unwrap(),
+            StandardOutCommand::new_command_string("test1", "ls -la .", dir.clone()).unwrap(),
+            StandardOutCommand::new_command_string("test2", "ls -la ..", dir.clone()).unwrap(),
+            StandardOutCommand::new_command_string("test3", "ls -la ../..", Some("..")).unwrap(),
         ];
 
         let mut opts = super::Options::new();
