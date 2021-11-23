@@ -17,78 +17,58 @@ pub struct StandardOutCommand {
 }
 
 impl StandardOutCommand {
-    pub fn new<S, C, ArgType, Cmds, D>(
+    pub fn new<S, C, ArgType, Cmds>(
         name: S,
         command: C,
         args: Cmds,
-        cur_dir: Option<D>,
     ) -> Result<StandardOutCommand, CommandError>
     where
         S: AsRef<str>,
         C: AsRef<str>,
         ArgType: AsRef<str>,
         Cmds: IntoIterator<Item = ArgType>,
-        D: AsRef<str>,
     {
         Ok(StandardOutCommand {
-            inner_command: Command::new(name, command, args, cur_dir)?,
+            inner_command: Command::new(name, command, args)?,
             color: Color::Random,
         })
     }
 
-    pub fn new_command_string<S, C, D>(
+    pub fn new_command_string<S, C>(
         name: S,
         command_string: C,
-        cur_dir: Option<D>,
     ) -> Result<StandardOutCommand, CommandError>
     where
         S: AsRef<str>,
         C: AsRef<str>,
-        D: AsRef<str>,
     {
         let (command, args) = parse_command_string(command_string)?;
         Ok(StandardOutCommand {
-            inner_command: Command::new(name, command, args, cur_dir)?,
+            inner_command: Command::new(name, command, args)?,
             color: Color::Random,
         })
     }
 
-    pub fn new_command_string_with_color<S, C, D>(
-        name: S,
-        command_string: C,
-        cur_dir: Option<D>,
-        color: Color,
-    ) -> Result<StandardOutCommand, CommandError>
-    where
-        S: AsRef<str>,
-        C: AsRef<str>,
-        D: AsRef<str>,
-    {
-        let (command, args) = parse_command_string(command_string)?;
-        Ok(StandardOutCommand {
-            inner_command: Command::new(name, command, args, cur_dir)?,
-            color,
-        })
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
     }
 
-    pub fn new_with_color<S, C, ArgType, Cmds, D>(
-        name: S,
-        command: C,
-        args: Cmds,
-        cur_dir: Option<D>,
-        color: Color,
-    ) -> Result<StandardOutCommand, CommandError>
+    pub fn cur_dir<D>(mut self, cur_dir: D) -> Self
     where
-        S: AsRef<str>,
-        C: AsRef<str>,
-        ArgType: AsRef<str>,
-        Cmds: IntoIterator<Item = ArgType>,
         D: AsRef<str>,
     {
-        Ok(StandardOutCommand {
-            inner_command: Command::new(name, command, args, cur_dir)?,
-            color,
-        })
+        self.inner_command = self.inner_command.cur_dir(cur_dir);
+        self
+    }
+
+    pub fn env<K, V>(mut self, key: K, val: V) -> Self
+    where
+        K: AsRef<str>,
+        V: AsRef<str>,
+    {
+        self.inner_command = self.inner_command.env(key, val);
+        self
     }
 }
 
@@ -257,11 +237,12 @@ mod tests {
 
     #[test]
     fn run_commands() {
-        let dir: Option<String> = None;
         let commands = vec![
-            StandardOutCommand::new_command_string("test1", "ls -la .", dir.clone()).unwrap(),
-            StandardOutCommand::new_command_string("test2", "ls -la ..", dir).unwrap(),
-            StandardOutCommand::new_command_string("test3", "ls -la ../..", Some("..")).unwrap(),
+            StandardOutCommand::new_command_string("test1", "ls -la .").unwrap(),
+            StandardOutCommand::new_command_string("test2", "ls -la ..").unwrap(),
+            StandardOutCommand::new_command_string("test3", "ls -la ../..")
+                .unwrap()
+                .cur_dir(".."),
         ];
 
         let mut opts = super::Options::new();

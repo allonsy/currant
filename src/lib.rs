@@ -4,6 +4,7 @@ mod line_parse;
 mod standard_out_api;
 mod writer_api;
 
+use std::collections::HashMap;
 use std::io;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -34,19 +35,18 @@ pub struct Command {
     command: String,
     args: Vec<String>,
     cur_dir: Option<String>,
+    env: HashMap<String, String>,
 }
 
 impl Command {
-    pub fn new<S, C, ArgType, Cmds, D>(
+    pub fn new<S, C, ArgType, Cmds>(
         name: S,
         command: C,
         args: Cmds,
-        cur_dir: Option<D>,
     ) -> Result<Command, CommandError>
     where
         S: AsRef<str>,
         C: AsRef<str>,
-        D: AsRef<str>,
         ArgType: AsRef<str>,
         Cmds: IntoIterator<Item = ArgType>,
     {
@@ -61,27 +61,42 @@ impl Command {
             name: name.as_ref().to_string(),
             command: command.as_ref().to_string(),
             args: converted_args,
-            cur_dir: cur_dir.map(|v| v.as_ref().to_string()),
+            cur_dir: None,
+            env: HashMap::new(),
         })
     }
 
-    pub fn new_command_string<S, C, D>(
-        name: S,
-        command_string: C,
-        cur_dir: Option<D>,
-    ) -> Result<Command, CommandError>
+    pub fn new_command_string<S, C>(name: S, command_string: C) -> Result<Command, CommandError>
     where
         S: AsRef<str>,
         C: AsRef<str>,
-        D: AsRef<str>,
     {
         let (command, args) = parse_command_string(command_string)?;
         Ok(Command {
             name: name.as_ref().to_string(),
             command,
             args,
-            cur_dir: cur_dir.map(|v| v.as_ref().to_string()),
+            cur_dir: None,
+            env: HashMap::new(),
         })
+    }
+
+    pub fn cur_dir<D>(mut self, dir: D) -> Self
+    where
+        D: AsRef<str>,
+    {
+        self.cur_dir = Some(dir.as_ref().to_string());
+        self
+    }
+
+    pub fn env<K, V>(mut self, key: K, val: V) -> Self
+    where
+        K: AsRef<str>,
+        V: AsRef<str>,
+    {
+        self.env
+            .insert(key.as_ref().to_string(), val.as_ref().to_string());
+        self
     }
 }
 
@@ -230,6 +245,7 @@ pub fn run_command(
         if command.cur_dir.is_some() {
             command_process.current_dir(command.cur_dir.clone().unwrap());
         }
+        command_process.envs(command.env.clone());
         command_process.stdout(process::Stdio::piped());
         let command_name = command.name.clone();
 
