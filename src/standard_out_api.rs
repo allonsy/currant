@@ -149,8 +149,8 @@ fn process_channel(
 
         let message = message.unwrap();
         let output_color = color_map.get(&message.name).unwrap();
-        let color_open_sequence = output_color.open_sequence();
-        let color_reset_sequence = output_color.close_sequence();
+        let color_open_sequence = color::open_sequence(output_color);
+        let color_reset_sequence = color::close_sequence();
         let std_out_flag = if file_handle_flags { "(o)" } else { "" };
         let std_err_flag = if file_handle_flags { "(e)" } else { "" };
         let mut stdout = std::io::stdout();
@@ -259,7 +259,7 @@ mod tests {
         let dir: Option<String> = None;
         let commands = vec![
             StandardOutCommand::new_command_string("test1", "ls -la .", dir.clone()).unwrap(),
-            StandardOutCommand::new_command_string("test2", "ls -la ..", dir.clone()).unwrap(),
+            StandardOutCommand::new_command_string("test2", "ls -la ..", dir).unwrap(),
             StandardOutCommand::new_command_string("test3", "ls -la ../..", Some("..")).unwrap(),
         ];
 

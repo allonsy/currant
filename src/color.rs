@@ -36,31 +36,28 @@ impl Color {
         while colors.len() < num_cmds as usize {
             colors.push(theta_to_rgb(start));
             start += space;
-            start = start % 360;
-        }
-        for _ in 0..num_cmds {
-            colors.push(Color::random());
+            start %= 360;
         }
 
         colors
     }
+}
 
-    pub fn open_sequence(&self) -> String {
-        match self {
-            Color::RGB(r, g, b) => format!("\x1b[38;2;{};{};{}m", r, g, b),
-            Color::Random => format!(
-                "\x1b[38;2;{};{};{}m",
-                rand::random::<u8>(),
-                rand::random::<u8>(),
-                rand::random::<u8>()
-            ),
-            Color::Default => self.close_sequence(),
-        }
+pub fn open_sequence(color: &Color) -> String {
+    match color {
+        Color::RGB(r, g, b) => format!("\x1b[38;2;{};{};{}m", r, g, b),
+        Color::Random => format!(
+            "\x1b[38;2;{};{};{}m",
+            rand::random::<u8>(),
+            rand::random::<u8>(),
+            rand::random::<u8>()
+        ),
+        Color::Default => close_sequence(),
     }
+}
 
-    pub fn close_sequence(&self) -> String {
-        "\x1b[0m".to_string()
-    }
+pub fn close_sequence() -> String {
+    "\x1b[0m".to_string()
 }
 
 impl Default for Color {
@@ -73,20 +70,16 @@ pub fn populate_random_colors(color_list: &mut HashMap<String, Color>) {
     let mut num_random = 0;
 
     for (_, color) in color_list.iter() {
-        match color {
-            Color::Random => {
-                num_random += 1;
-            }
-            _ => {}
+        if color == &Color::Random {
+            num_random += 1;
         }
     }
 
     let mut random_list = Color::random_color_list(num_random);
 
     for (_, color) in color_list.iter_mut() {
-        match color {
-            Color::Random => *color = random_list.pop().unwrap(),
-            _ => {}
+        if color == &Color::Random {
+            *color = random_list.pop().unwrap();
         }
     }
 }
@@ -96,15 +89,15 @@ fn theta_to_rgb(theta: u32) -> Color {
     let h_prime = f64::from(theta) / 60.0;
     let x = c * (1.0 - ((h_prime % 2.0) - 1.0).abs());
 
-    let (r_1, g_1, b_1) = if h_prime >= 0.0 && h_prime < 1.0 {
+    let (r_1, g_1, b_1) = if (0.0..1.0).contains(&h_prime) {
         (c, x, 0.0)
-    } else if 1.0 <= h_prime && h_prime < 2.0 {
+    } else if (1.0..2.0).contains(&h_prime) {
         (x, c, 0.0)
-    } else if 2.0 <= h_prime && h_prime < 3.0 {
+    } else if (2.0..3.0).contains(&h_prime) {
         (0.0, c, x)
-    } else if 3.0 <= h_prime && h_prime < 4.0 {
+    } else if (3.0..4.0).contains(&h_prime) {
         (0.0, x, c)
-    } else if 4.0 <= h_prime && h_prime < 5.0 {
+    } else if (4.0..5.0).contains(&h_prime) {
         (x, 0.0, c)
     } else {
         (c, 0.0, x)
