@@ -21,7 +21,7 @@ impl Color {
         Color::RGB(r, g, b)
     }
 
-    pub fn random() -> Self {
+    pub fn true_random() -> Self {
         Color::RGB(rand::random(), rand::random(), rand::random())
     }
 
