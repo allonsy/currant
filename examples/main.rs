@@ -1,5 +1,3 @@
-
-
 fn main() {
     let dir: Option<String> = None;
     let commands = vec![
