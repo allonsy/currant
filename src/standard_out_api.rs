@@ -238,7 +238,8 @@ pub fn parse_command_string<S>(command: S) -> Result<(String, Vec<String>), Comm
 where
     S: AsRef<str>,
 {
-    let mut words = shell_words::split(command.as_ref()).map_err(|_| CommandError::ParseError)?;
+    let mut words = shell_words::split(command.as_ref())
+        .map_err(|_| CommandError::ParseError(command.as_ref().to_string()))?;
     if words.is_empty() {
         return Err(CommandError::EmptyCommand);
     }

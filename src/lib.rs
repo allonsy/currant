@@ -26,7 +26,7 @@ pub use writer_api::run_commands_writer_with_options;
 #[derive(Debug)]
 pub enum CommandError {
     EmptyCommand,
-    ParseError,
+    ParseError(String),
 }
 
 pub struct Command {
