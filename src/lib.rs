@@ -120,10 +120,10 @@ pub struct CommandHandle {
 }
 
 impl CommandHandle {
-    pub fn join(self) {
+    pub fn join(self) -> Result<Vec<Option<ExitStatus>>, String> {
         self.handle
             .join()
-            .unwrap_or_else(|_| panic!("Unable to join on handle"));
+            .map_err(|_| "Thread panic'ed before exit".to_string())
     }
 
     pub fn get_output_channel(&self) -> &mpsc::Receiver<OutputMessage> {
@@ -141,10 +141,10 @@ pub struct ControlledCommandHandle {
 }
 
 impl ControlledCommandHandle {
-    pub fn join(self) {
+    pub fn join(self) -> Result<Vec<Option<ExitStatus>>, String> {
         self.handle
             .join()
-            .unwrap_or_else(|_| panic!("Unable to join on handle"));
+            .map_err(|_| "thread panic'ed before exit".to_string())
     }
 
     pub fn kill(&self) {
