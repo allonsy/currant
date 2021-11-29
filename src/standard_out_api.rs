@@ -8,9 +8,9 @@ use super::OutputMessagePayload;
 
 use std::collections::HashMap;
 use std::io::Write;
+use std::path::Path;
 use std::sync::mpsc;
 use std::thread;
-
 pub struct StandardOutCommand {
     inner_command: Command,
     color: Color,
@@ -56,7 +56,7 @@ impl StandardOutCommand {
 
     pub fn cur_dir<D>(mut self, cur_dir: D) -> Self
     where
-        D: AsRef<str>,
+        D: AsRef<Path>,
     {
         self.inner_command = self.inner_command.cur_dir(cur_dir);
         self
@@ -249,6 +249,6 @@ mod tests {
         opts.restart(RestartOptions::Kill);
 
         let handle = run_commands_stdout(commands);
-        handle.join();
+        let _ = handle.join();
     }
 }

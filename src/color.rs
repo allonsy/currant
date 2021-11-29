@@ -1,3 +1,4 @@
+use atty::Stream;
 use std::collections::HashMap;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -44,20 +45,28 @@ impl Color {
 }
 
 pub fn open_sequence(color: &Color) -> String {
-    match color {
-        Color::RGB(r, g, b) => format!("\x1b[38;2;{};{};{}m", r, g, b),
-        Color::Random => format!(
-            "\x1b[38;2;{};{};{}m",
-            rand::random::<u8>(),
-            rand::random::<u8>(),
-            rand::random::<u8>()
-        ),
-        Color::Default => close_sequence(),
+    if atty::is(Stream::Stdout) {
+        match color {
+            Color::RGB(r, g, b) => format!("\x1b[38;2;{};{};{}m", r, g, b),
+            Color::Random => format!(
+                "\x1b[38;2;{};{};{}m",
+                rand::random::<u8>(),
+                rand::random::<u8>(),
+                rand::random::<u8>()
+            ),
+            Color::Default => close_sequence(),
+        }
+    } else {
+        String::new()
     }
 }
 
 pub fn close_sequence() -> String {
-    "\x1b[0m".to_string()
+    if atty::is(Stream::Stdout) {
+        "\x1b[0m".to_string()
+    } else {
+        String::new()
+    }
 }
 
 impl Default for Color {

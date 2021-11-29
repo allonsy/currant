@@ -8,6 +8,8 @@ use std::collections::HashMap;
 use std::io;
 use std::io::BufRead;
 use std::io::BufReader;
+use std::path::Path;
+use std::path::PathBuf;
 use std::process;
 use std::process::ExitStatus;
 use std::sync::mpsc;
@@ -34,7 +36,7 @@ pub struct Command {
     name: String,
     command: String,
     args: Vec<String>,
-    cur_dir: Option<String>,
+    cur_dir: Option<PathBuf>,
     env: HashMap<String, String>,
 }
 
@@ -83,9 +85,9 @@ impl Command {
 
     pub fn cur_dir<D>(mut self, dir: D) -> Self
     where
-        D: AsRef<str>,
+        D: AsRef<Path>,
     {
-        self.cur_dir = Some(dir.as_ref().to_string());
+        self.cur_dir = Some(dir.as_ref().to_path_buf());
         self
     }
 
