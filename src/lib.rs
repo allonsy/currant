@@ -40,12 +40,40 @@ pub struct Command {
     env: HashMap<String, String>,
 }
 
-impl Command {
-    pub fn new<S, C, ArgType, Cmds>(
-        name: S,
-        command: C,
-        args: Cmds,
-    ) -> Result<Command, CommandError>
+pub trait CommandOperations
+where
+    Self: Sized,
+{
+    fn new<S, C, ArgType, Cmds>(name: S, command: C, args: Cmds) -> Result<Self, CommandError>
+    where
+        S: AsRef<str>,
+        C: AsRef<str>,
+        ArgType: AsRef<str>,
+        Cmds: IntoIterator<Item = ArgType>;
+
+    fn full_cmd<S, C>(name: S, command_string: C) -> Result<Self, CommandError>
+    where
+        S: AsRef<str>,
+        C: AsRef<str>;
+
+    fn cur_dir<D>(&mut self, dir: D) -> &mut Self
+    where
+        D: AsRef<Path>;
+
+    fn env<K, V>(&mut self, key: K, val: V) -> &mut Self
+    where
+        K: AsRef<str>,
+        V: AsRef<str>;
+}
+
+pub trait CommandLike {
+    fn insert_command(cmd: Command) -> Self;
+
+    fn get_command(&mut self) -> &mut Command;
+}
+
+impl<T: CommandLike> CommandOperations for T {
+    fn new<S, C, ArgType, Cmds>(name: S, command: C, args: Cmds) -> Result<Self, CommandError>
     where
         S: AsRef<str>,
         C: AsRef<str>,
@@ -59,45 +87,56 @@ impl Command {
             .into_iter()
             .map(|s| s.as_ref().to_string())
             .collect::<Vec<String>>();
-        Ok(Command {
+        Ok(T::insert_command(Command {
             name: name.as_ref().to_string(),
             command: command.as_ref().to_string(),
             args: converted_args,
             cur_dir: None,
             env: HashMap::new(),
-        })
+        }))
     }
 
-    pub fn full_cmd<S, C>(name: S, command_string: C) -> Result<Command, CommandError>
+    fn full_cmd<S, C>(name: S, command_string: C) -> Result<Self, CommandError>
     where
         S: AsRef<str>,
         C: AsRef<str>,
     {
         let (command, args) = parse_command_string(command_string)?;
-        Ok(Command {
+        Ok(T::insert_command(Command {
             name: name.as_ref().to_string(),
             command,
             args,
             cur_dir: None,
             env: HashMap::new(),
-        })
+        }))
     }
 
-    pub fn cur_dir<D>(mut self, dir: D) -> Self
+    fn cur_dir<D>(&mut self, dir: D) -> &mut Self
     where
         D: AsRef<Path>,
     {
-        self.cur_dir = Some(dir.as_ref().to_path_buf());
+        self.get_command().cur_dir = Some(dir.as_ref().to_path_buf());
         self
     }
 
-    pub fn env<K, V>(mut self, key: K, val: V) -> Self
+    fn env<K, V>(&mut self, key: K, val: V) -> &mut Self
     where
         K: AsRef<str>,
         V: AsRef<str>,
     {
-        self.env
+        self.get_command()
+            .env
             .insert(key.as_ref().to_string(), val.as_ref().to_string());
+        self
+    }
+}
+
+impl CommandLike for Command {
+    fn insert_command(cmd: Command) -> Self {
+        cmd
+    }
+
+    fn get_command(&mut self) -> &mut Command {
         self
     }
 }

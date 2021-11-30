@@ -1,15 +1,14 @@
+use currant::CommandOperations;
 fn main() {
-    let commands = vec![
-        currant::ConsoleCommand::full_cmd("test1", "ls -la .")
-            .unwrap()
-            .color(currant::Color::BLUE),
-        currant::ConsoleCommand::full_cmd("test2", "ls -la ..")
-            .unwrap()
-            .color(currant::Color::RED),
-        currant::ConsoleCommand::full_cmd("test3", "ls -la ../..")
-            .unwrap()
-            .color(currant::Color::GREEN),
-    ];
+    let mut first = currant::ConsoleCommand::full_cmd("test1", "ls -la .").unwrap();
+
+    first.color(currant::Color::BLUE);
+    let mut second = currant::ConsoleCommand::full_cmd("test2", "ls -la ..").unwrap();
+    second.color(currant::Color::RED);
+    let mut third = currant::ConsoleCommand::full_cmd("test3", "ls -la ../..").unwrap();
+    third.color(currant::Color::GREEN);
+
+    let commands = vec![first, second, third];
 
     let mut opts = currant::Options::new();
     opts.restart(currant::RestartOptions::Kill);

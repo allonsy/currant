@@ -1,3 +1,5 @@
+use crate::CommandLike;
+
 use super::color;
 use super::color::Color;
 use super::Command;
@@ -8,7 +10,6 @@ use super::OutputMessagePayload;
 
 use std::collections::HashMap;
 use std::io::Write;
-use std::path::Path;
 use std::sync::mpsc;
 use std::thread;
 pub struct ConsoleCommand {
@@ -16,55 +17,22 @@ pub struct ConsoleCommand {
     color: Color,
 }
 
+impl CommandLike for ConsoleCommand {
+    fn insert_command(cmd: Command) -> Self {
+        ConsoleCommand {
+            inner_command: cmd,
+            color: Color::Random,
+        }
+    }
+
+    fn get_command(&mut self) -> &mut Command {
+        &mut self.inner_command
+    }
+}
+
 impl ConsoleCommand {
-    pub fn new<S, C, ArgType, Cmds>(
-        name: S,
-        command: C,
-        args: Cmds,
-    ) -> Result<ConsoleCommand, CommandError>
-    where
-        S: AsRef<str>,
-        C: AsRef<str>,
-        ArgType: AsRef<str>,
-        Cmds: IntoIterator<Item = ArgType>,
-    {
-        Ok(ConsoleCommand {
-            inner_command: Command::new(name, command, args)?,
-            color: Color::Random,
-        })
-    }
-
-    pub fn full_cmd<S, C>(name: S, command_string: C) -> Result<ConsoleCommand, CommandError>
-    where
-        S: AsRef<str>,
-        C: AsRef<str>,
-    {
-        let (command, args) = parse_command_string(command_string)?;
-        Ok(ConsoleCommand {
-            inner_command: Command::new(name, command, args)?,
-            color: Color::Random,
-        })
-    }
-
-    pub fn color(mut self, color: Color) -> Self {
+    pub fn color(&mut self, color: Color) -> &mut Self {
         self.color = color;
-        self
-    }
-
-    pub fn cur_dir<D>(mut self, cur_dir: D) -> Self
-    where
-        D: AsRef<Path>,
-    {
-        self.inner_command = self.inner_command.cur_dir(cur_dir);
-        self
-    }
-
-    pub fn env<K, V>(mut self, key: K, val: V) -> Self
-    where
-        K: AsRef<str>,
-        V: AsRef<str>,
-    {
-        self.inner_command = self.inner_command.env(key, val);
         self
     }
 }
@@ -230,16 +198,18 @@ mod tests {
     use super::run_commands_stdout;
 
     use super::ConsoleCommand;
+    use crate::CommandOperations;
     use crate::RestartOptions;
 
     #[test]
     fn run_commands() {
+        let mut third_command = ConsoleCommand::full_cmd("test3", "ls -la ../..").unwrap();
+        third_command.cur_dir("..");
+
         let commands = vec![
             ConsoleCommand::full_cmd("test1", "ls -la .").unwrap(),
             ConsoleCommand::full_cmd("test2", "ls -la ..").unwrap(),
-            ConsoleCommand::full_cmd("test3", "ls -la ../..")
-                .unwrap()
-                .cur_dir(".."),
+            third_command,
         ];
 
         let mut opts = super::Options::new();
