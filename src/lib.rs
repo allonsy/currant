@@ -21,7 +21,7 @@ pub use color::Color;
 pub use standard_out_api::parse_command_string;
 pub use standard_out_api::run_commands_stdout;
 pub use standard_out_api::run_commands_stdout_with_options;
-pub use standard_out_api::StandardOutCommand;
+pub use standard_out_api::ConsoleCommand;
 
 pub use writer_api::run_commands_writer;
 pub use writer_api::run_commands_writer_with_options;
@@ -68,7 +68,7 @@ impl Command {
         })
     }
 
-    pub fn new_command_string<S, C>(name: S, command_string: C) -> Result<Command, CommandError>
+    pub fn full_cmd<S, C>(name: S, command_string: C) -> Result<Command, CommandError>
     where
         S: AsRef<str>,
         C: AsRef<str>,

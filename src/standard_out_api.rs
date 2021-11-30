@@ -11,39 +11,36 @@ use std::io::Write;
 use std::path::Path;
 use std::sync::mpsc;
 use std::thread;
-pub struct StandardOutCommand {
+pub struct ConsoleCommand {
     inner_command: Command,
     color: Color,
 }
 
-impl StandardOutCommand {
+impl ConsoleCommand {
     pub fn new<S, C, ArgType, Cmds>(
         name: S,
         command: C,
         args: Cmds,
-    ) -> Result<StandardOutCommand, CommandError>
+    ) -> Result<ConsoleCommand, CommandError>
     where
         S: AsRef<str>,
         C: AsRef<str>,
         ArgType: AsRef<str>,
         Cmds: IntoIterator<Item = ArgType>,
     {
-        Ok(StandardOutCommand {
+        Ok(ConsoleCommand {
             inner_command: Command::new(name, command, args)?,
             color: Color::Random,
         })
     }
 
-    pub fn new_command_string<S, C>(
-        name: S,
-        command_string: C,
-    ) -> Result<StandardOutCommand, CommandError>
+    pub fn full_cmd<S, C>(name: S, command_string: C) -> Result<ConsoleCommand, CommandError>
     where
         S: AsRef<str>,
         C: AsRef<str>,
     {
         let (command, args) = parse_command_string(command_string)?;
-        Ok(StandardOutCommand {
+        Ok(ConsoleCommand {
             inner_command: Command::new(name, command, args)?,
             color: Color::Random,
         })
@@ -74,7 +71,7 @@ impl StandardOutCommand {
 
 pub fn run_commands_stdout<Cmds>(commands: Cmds) -> ControlledCommandHandle
 where
-    Cmds: IntoIterator<Item = StandardOutCommand>,
+    Cmds: IntoIterator<Item = ConsoleCommand>,
 {
     run_commands_stdout_with_options(commands, super::Options::new())
 }
@@ -84,7 +81,7 @@ pub fn run_commands_stdout_with_options<Cmds>(
     options: Options,
 ) -> ControlledCommandHandle
 where
-    Cmds: IntoIterator<Item = StandardOutCommand>,
+    Cmds: IntoIterator<Item = ConsoleCommand>,
 {
     let mut name_color_hash = HashMap::new();
     let mut inner_commands = Vec::new();
@@ -232,15 +229,15 @@ where
 mod tests {
     use super::run_commands_stdout;
 
-    use super::StandardOutCommand;
+    use super::ConsoleCommand;
     use crate::RestartOptions;
 
     #[test]
     fn run_commands() {
         let commands = vec![
-            StandardOutCommand::new_command_string("test1", "ls -la .").unwrap(),
-            StandardOutCommand::new_command_string("test2", "ls -la ..").unwrap(),
-            StandardOutCommand::new_command_string("test3", "ls -la ../..")
+            ConsoleCommand::full_cmd("test1", "ls -la .").unwrap(),
+            ConsoleCommand::full_cmd("test2", "ls -la ..").unwrap(),
+            ConsoleCommand::full_cmd("test3", "ls -la ../..")
                 .unwrap()
                 .cur_dir(".."),
         ];
