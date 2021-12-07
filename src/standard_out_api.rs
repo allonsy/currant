@@ -17,6 +17,13 @@ pub struct ConsoleCommand {
     color: Color,
 }
 
+impl ConsoleCommand {
+    pub fn color(&mut self, color: Color) -> &mut Self {
+        self.color = color;
+        self
+    }
+}
+
 impl CommandLike for ConsoleCommand {
     fn insert_command(cmd: Command) -> Self {
         ConsoleCommand {
@@ -27,13 +34,6 @@ impl CommandLike for ConsoleCommand {
 
     fn get_command(&mut self) -> &mut Command {
         &mut self.inner_command
-    }
-}
-
-impl ConsoleCommand {
-    pub fn color(&mut self, color: Color) -> &mut Self {
-        self.color = color;
-        self
     }
 }
 
