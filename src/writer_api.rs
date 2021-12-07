@@ -1,30 +1,19 @@
 use super::Command;
 use super::ControlledCommandHandle;
-use super::Options;
+use super::Runner;
 use super::OutputMessagePayload;
-
 use std::io::Write;
 use std::sync::mpsc;
 use std::thread;
 
-pub fn run_commands_writer<Cmds, W>(commands: Cmds, writer: W) -> ControlledCommandHandle
-where
-    Cmds: IntoIterator<Item = Command>,
-    W: Write + Send + 'static,
-{
-    run_commands_writer_with_options(commands, writer, super::Options::new())
-}
-
-pub fn run_commands_writer_with_options<Cmds, W>(
-    commands: Cmds,
+pub fn run_commands_writer<W>(
+    runner: Runner<Command>,
     writer: W,
-    options: Options,
 ) -> ControlledCommandHandle
 where
     W: Write + Send + 'static,
-    Cmds: IntoIterator<Item = Command>,
 {
-    let handle = super::run_commands(commands, options);
+    let handle = super::run_commands(&runner);
 
     let recv = handle.channel;
 

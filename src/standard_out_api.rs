@@ -5,13 +5,15 @@ use super::color::Color;
 use super::Command;
 use super::CommandError;
 use super::ControlledCommandHandle;
-use super::Options;
+use super::Runner;
 use super::OutputMessagePayload;
 
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::mpsc;
 use std::thread;
+
+#[derive(Clone)]
 pub struct ConsoleCommand {
     inner_command: Command,
     color: Color,
@@ -32,21 +34,17 @@ impl CommandLike for ConsoleCommand {
         }
     }
 
-    fn get_command(&mut self) -> &mut Command {
+    fn get_command(&self) -> &Command {
+        &self.inner_command
+    }
+
+    fn get_command_mut(&mut self) -> &mut Command {
         &mut self.inner_command
     }
 }
 
-pub fn run_commands_stdout<Cmds>(commands: Cmds) -> ControlledCommandHandle
-where
-    Cmds: IntoIterator<Item = ConsoleCommand>,
-{
-    run_commands_stdout_with_options(commands, super::Options::new())
-}
-
-pub fn run_commands_stdout_with_options<Cmds>(
-    commands: Cmds,
-    options: Options,
+pub fn run_commands_stdout<Cmds>(
+    runner: Runner<ConsoleCommand>,
 ) -> ControlledCommandHandle
 where
     Cmds: IntoIterator<Item = ConsoleCommand>,
@@ -54,10 +52,11 @@ where
     let mut name_color_hash = HashMap::new();
     let mut inner_commands = Vec::new();
     let mut num_cmds = 0;
+    let options = runner.to_options();
 
-    for cmd in commands {
+    for cmd in runner.commands.iter() {
         name_color_hash.insert(cmd.inner_command.name.to_string(), cmd.color.clone());
-        inner_commands.push(cmd.inner_command);
+        inner_commands.push(cmd.inner_command.clone());
         num_cmds += 1;
     }
 
@@ -66,7 +65,7 @@ where
     let verbose = options.verbose;
     let file_handle_flags = options.file_handle_flags;
 
-    let handle = super::run_commands(inner_commands, options);
+    let handle = super::run_commands(&runner);
 
     let recv = handle.channel;
 
@@ -196,7 +195,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::run_commands_stdout;
-
+    use crate::Runner;
     use super::ConsoleCommand;
     use crate::CommandOperations;
     use crate::RestartOptions;
@@ -212,10 +211,13 @@ mod tests {
             third_command,
         ];
 
-        let mut opts = super::Options::new();
-        opts.restart(RestartOptions::Kill);
-
-        let handle = run_commands_stdout(commands);
+        let handle = run_commands_stdout(
+            Runner::new()
+                .command(ConsoleCommand::full_cmd("test1", "ls -la .").unwrap())
+                .command(ConsoleCommand::full_cmd("test2", "ls -la ..").unwrap())
+                .command(third_command)
+                .restart(RestartOptions::Kill)
+        );
         let _ = handle.join();
     }
 }

@@ -10,9 +10,6 @@ fn main() {
 
     let commands = vec![first, second, third];
 
-    let mut opts = currant::Options::new();
-    opts.restart(currant::RestartOptions::Kill);
-
     let handle = currant::run_commands_stdout(commands);
     handle.join().unwrap();
 }

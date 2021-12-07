@@ -20,11 +20,9 @@ use std::thread;
 pub use color::Color;
 pub use standard_out_api::parse_command_string;
 pub use standard_out_api::run_commands_stdout;
-pub use standard_out_api::run_commands_stdout_with_options;
 pub use standard_out_api::ConsoleCommand;
 
 pub use writer_api::run_commands_writer;
-pub use writer_api::run_commands_writer_with_options;
 
 #[derive(Debug)]
 pub enum CommandError {
@@ -32,6 +30,7 @@ pub enum CommandError {
     ParseError(String),
 }
 
+#[derive(Clone)]
 pub struct Command {
     name: String,
     command: String,
@@ -69,7 +68,9 @@ where
 pub trait CommandLike {
     fn insert_command(cmd: Command) -> Self;
 
-    fn get_command(&mut self) -> &mut Command;
+    fn get_command(&self) -> &Command;
+
+    fn get_command_mut(&mut self) -> &mut Command;
 }
 
 impl<T: CommandLike> CommandOperations for T {
@@ -115,7 +116,7 @@ impl<T: CommandLike> CommandOperations for T {
     where
         D: AsRef<Path>,
     {
-        self.get_command().cur_dir = Some(dir.as_ref().to_path_buf());
+        self.get_command_mut().cur_dir = Some(dir.as_ref().to_path_buf());
         self
     }
 
@@ -124,7 +125,7 @@ impl<T: CommandLike> CommandOperations for T {
         K: AsRef<str>,
         V: AsRef<str>,
     {
-        self.get_command()
+        self.get_command_mut()
             .env
             .insert(key.as_ref().to_string(), val.as_ref().to_string());
         self
@@ -136,7 +137,11 @@ impl CommandLike for Command {
         cmd
     }
 
-    fn get_command(&mut self) -> &mut Command {
+    fn get_command(&self) -> &Command {
+        self
+    }
+
+    fn get_command_mut(&mut self) -> &mut Command {
         self
     }
 }
@@ -201,46 +206,55 @@ pub enum RestartOptions {
 }
 
 #[derive(Clone)]
-pub struct Options {
+struct Options {
     restart: RestartOptions,
     verbose: bool,
     file_handle_flags: bool,
 }
 
-impl Options {
-    pub fn new() -> Options {
-        Options {
-            restart: RestartOptions::Continue,
-            verbose: true,
-            file_handle_flags: true,
-        }
+pub struct Runner<C: CommandLike> {
+    commands: Vec<C>,
+    restart: RestartOptions,
+    verbose: bool,
+    file_handle_flags: bool
+}
+
+impl<CL: CommandLike + Clone> Runner<CL> {
+    pub fn new() -> Self {
+        Runner { commands: Vec::new(), restart: RestartOptions::Continue, verbose: true, file_handle_flags: true }
     }
 
-    pub fn verbose(&mut self, verbose: bool) {
-        self.verbose = verbose;
+    pub fn command<C>(&mut self, cmd: C) -> &mut Self where
+        C: AsRef<CL> 
+    {
+        self.commands.push(cmd.as_ref().clone());
+        self
     }
 
-    pub fn restart(&mut self, restart: RestartOptions) {
-        self.restart = restart;
+    pub fn restart(&mut self, restart_opt: RestartOptions) -> &mut Self {
+        self.restart = restart_opt;
+        self
     }
 
-    pub fn file_handle_flags(&mut self, file_handle_flags: bool) {
-        self.file_handle_flags = file_handle_flags;
+    pub fn verbose(&mut self, verbose_opt: bool) -> &mut Self {
+        self.verbose = verbose_opt;
+        self
+    }
+
+    pub fn should_show_file_handle(&mut self, file_handle_flag_opt: bool) -> &mut Self {
+        self.file_handle_flags = file_handle_flag_opt;
+        self
+    }
+
+    fn to_options(&self) -> Options {
+        Options { restart: self.restart.clone(), verbose: self.verbose, file_handle_flags: self.file_handle_flags }
     }
 }
 
-impl Default for Options {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-pub fn run_commands<Cmds>(commands: Cmds, options: Options) -> CommandHandle
-where
-    Cmds: IntoIterator<Item = Command>,
+pub fn run_commands<CL: CommandLike + Clone>(runner: &Runner<CL>) -> CommandHandle
 {
-    let actual_cmds = commands.into_iter().collect::<Vec<Command>>();
-    run_commands_internal(actual_cmds, options)
+    let actual_cmds = runner.commands.iter().map(|c| c.get_command().clone()).collect::<Vec<Command>>();
+    run_commands_internal(actual_cmds, runner.to_options())
 }
 
 fn run_commands_internal(commands: Vec<Command>, options: Options) -> CommandHandle {
@@ -274,7 +288,7 @@ fn run_commands_internal(commands: Vec<Command>, options: Options) -> CommandHan
     }
 }
 
-pub fn run_command(
+fn run_command(
     command: Command,
     send_chan: mpsc::Sender<OutputMessage>,
     options: Options,
