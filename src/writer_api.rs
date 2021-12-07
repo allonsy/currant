@@ -1,15 +1,12 @@
 use super::Command;
 use super::ControlledCommandHandle;
-use super::Runner;
 use super::OutputMessagePayload;
+use super::Runner;
 use std::io::Write;
 use std::sync::mpsc;
 use std::thread;
 
-pub fn run_commands_writer<W>(
-    runner: Runner<Command>,
-    writer: W,
-) -> ControlledCommandHandle
+pub fn run_commands_writer<W>(runner: &Runner<Command>, writer: W) -> ControlledCommandHandle
 where
     W: Write + Send + 'static,
 {

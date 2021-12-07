@@ -39,6 +39,12 @@ pub struct Command {
     env: HashMap<String, String>,
 }
 
+impl AsRef<Command> for Command {
+    fn as_ref(&self) -> &Command {
+        self
+    }
+}
+
 pub trait CommandOperations
 where
     Self: Sized,
@@ -165,6 +171,10 @@ pub struct CommandHandle {
     kill_trigger: kill_barrier::KillBarrier,
 }
 
+pub struct HandleIterator<'a> {
+    channel: &'a mpsc::Receiver<OutputMessage>,
+}
+
 impl CommandHandle {
     pub fn join(self) -> Result<Vec<Option<ExitStatus>>, String> {
         self.handle
@@ -178,6 +188,28 @@ impl CommandHandle {
 
     pub fn kill(&self) {
         let _ = self.kill_trigger.initiate_kill();
+    }
+
+    pub fn iter(&self) -> HandleIterator {
+        HandleIterator {
+            channel: &self.channel,
+        }
+    }
+}
+
+impl Iterator for CommandHandle {
+    type Item = OutputMessage;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.channel.recv().ok()
+    }
+}
+
+impl<'a> Iterator for HandleIterator<'a> {
+    type Item = OutputMessage;
+
+    fn next(&mut self) -> Option<OutputMessage> {
+        self.channel.recv().ok()
     }
 }
 
@@ -216,16 +248,28 @@ pub struct Runner<C: CommandLike> {
     commands: Vec<C>,
     restart: RestartOptions,
     verbose: bool,
-    file_handle_flags: bool
+    file_handle_flags: bool,
+}
+
+impl<C: CommandLike + Clone> Default for Runner<C> {
+    fn default() -> Self {
+        Runner::new()
+    }
 }
 
 impl<CL: CommandLike + Clone> Runner<CL> {
     pub fn new() -> Self {
-        Runner { commands: Vec::new(), restart: RestartOptions::Continue, verbose: true, file_handle_flags: true }
+        Runner {
+            commands: Vec::new(),
+            restart: RestartOptions::Continue,
+            verbose: true,
+            file_handle_flags: true,
+        }
     }
 
-    pub fn command<C>(&mut self, cmd: C) -> &mut Self where
-        C: AsRef<CL> 
+    pub fn command<C>(&mut self, cmd: C) -> &mut Self
+    where
+        C: AsRef<CL>,
     {
         self.commands.push(cmd.as_ref().clone());
         self
@@ -247,13 +291,20 @@ impl<CL: CommandLike + Clone> Runner<CL> {
     }
 
     fn to_options(&self) -> Options {
-        Options { restart: self.restart.clone(), verbose: self.verbose, file_handle_flags: self.file_handle_flags }
+        Options {
+            restart: self.restart.clone(),
+            verbose: self.verbose,
+            file_handle_flags: self.file_handle_flags,
+        }
     }
 }
 
-pub fn run_commands<CL: CommandLike + Clone>(runner: &Runner<CL>) -> CommandHandle
-{
-    let actual_cmds = runner.commands.iter().map(|c| c.get_command().clone()).collect::<Vec<Command>>();
+pub fn run_commands<CL: CommandLike + Clone>(runner: &Runner<CL>) -> CommandHandle {
+    let actual_cmds = runner
+        .commands
+        .iter()
+        .map(|c| c.get_command().clone())
+        .collect::<Vec<Command>>();
     run_commands_internal(actual_cmds, runner.to_options())
 }
 

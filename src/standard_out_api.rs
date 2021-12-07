@@ -5,8 +5,8 @@ use super::color::Color;
 use super::Command;
 use super::CommandError;
 use super::ControlledCommandHandle;
-use super::Runner;
 use super::OutputMessagePayload;
+use super::Runner;
 
 use std::collections::HashMap;
 use std::io::Write;
@@ -17,6 +17,12 @@ use std::thread;
 pub struct ConsoleCommand {
     inner_command: Command,
     color: Color,
+}
+
+impl AsRef<ConsoleCommand> for ConsoleCommand {
+    fn as_ref(&self) -> &ConsoleCommand {
+        self
+    }
 }
 
 impl ConsoleCommand {
@@ -43,12 +49,7 @@ impl CommandLike for ConsoleCommand {
     }
 }
 
-pub fn run_commands_stdout<Cmds>(
-    runner: Runner<ConsoleCommand>,
-) -> ControlledCommandHandle
-where
-    Cmds: IntoIterator<Item = ConsoleCommand>,
-{
+pub fn run_commands_stdout(runner: &Runner<ConsoleCommand>) -> ControlledCommandHandle {
     let mut name_color_hash = HashMap::new();
     let mut inner_commands = Vec::new();
     let mut num_cmds = 0;
@@ -65,7 +66,7 @@ where
     let verbose = options.verbose;
     let file_handle_flags = options.file_handle_flags;
 
-    let handle = super::run_commands(&runner);
+    let handle = super::run_commands(runner);
 
     let recv = handle.channel;
 
@@ -195,28 +196,23 @@ where
 #[cfg(test)]
 mod tests {
     use super::run_commands_stdout;
-    use crate::Runner;
     use super::ConsoleCommand;
     use crate::CommandOperations;
     use crate::RestartOptions;
+    use crate::Runner;
 
     #[test]
     fn run_commands() {
-        let mut third_command = ConsoleCommand::full_cmd("test3", "ls -la ../..").unwrap();
-        third_command.cur_dir("..");
-
-        let commands = vec![
-            ConsoleCommand::full_cmd("test1", "ls -la .").unwrap(),
-            ConsoleCommand::full_cmd("test2", "ls -la ..").unwrap(),
-            third_command,
-        ];
-
         let handle = run_commands_stdout(
             Runner::new()
                 .command(ConsoleCommand::full_cmd("test1", "ls -la .").unwrap())
                 .command(ConsoleCommand::full_cmd("test2", "ls -la ..").unwrap())
-                .command(third_command)
-                .restart(RestartOptions::Kill)
+                .command(
+                    ConsoleCommand::full_cmd("test3", "ls -la ../..")
+                        .unwrap()
+                        .cur_dir(".."),
+                )
+                .restart(RestartOptions::Kill),
         );
         let _ = handle.join();
     }
