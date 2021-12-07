@@ -10,7 +10,7 @@ pub fn run_commands_writer<W>(runner: &Runner<Command>, writer: W) -> Controlled
 where
     W: Write + Send + 'static,
 {
-    let handle = super::run_commands(&runner);
+    let handle = super::run_commands(runner);
 
     let recv = handle.channel;
 
