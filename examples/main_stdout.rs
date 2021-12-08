@@ -6,17 +6,17 @@ fn main() {
     let handle = currant::run_commands_stdout(
         Runner::new()
             .command(
-                ConsoleCommand::full_cmd("test1", "ls -la .")
+                ConsoleCommand::from_string("test1", "ls -la .")
                     .unwrap()
                     .color(Color::BLUE),
             )
             .command(
-                ConsoleCommand::full_cmd("test2", "ls -la ..")
+                ConsoleCommand::from_string("test2", "ls -la ..")
                     .unwrap()
                     .color(Color::RED),
             )
             .command(
-                ConsoleCommand::full_cmd("test3", "ls -la ../..")
+                ConsoleCommand::from_string("test3", "ls -la ../..")
                     .unwrap()
                     .color(Color::GREEN),
             ),

@@ -204,10 +204,10 @@ mod tests {
     fn run_commands() {
         let handle = run_commands_stdout(
             Runner::new()
-                .command(ConsoleCommand::full_cmd("test1", "ls -la .").unwrap())
-                .command(ConsoleCommand::full_cmd("test2", "ls -la ..").unwrap())
+                .command(ConsoleCommand::from_string("test1", "ls -la .").unwrap())
+                .command(ConsoleCommand::from_string("test2", "ls -la ..").unwrap())
                 .command(
-                    ConsoleCommand::full_cmd("test3", "ls -la ../..")
+                    ConsoleCommand::from_string("test3", "ls -la ../..")
                         .unwrap()
                         .cur_dir(".."),
                 )

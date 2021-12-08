@@ -6,9 +6,9 @@ use currant::Runner;
 fn main() {
     let handle = currant::run_commands(
         Runner::new()
-            .command(Command::full_cmd("test1", "ls -la .").unwrap())
-            .command(Command::full_cmd("test2", "ls -la ..").unwrap())
-            .command(Command::full_cmd("test3", "ls -la ../..").unwrap()),
+            .command(Command::from_string("test1", "ls -la .").unwrap())
+            .command(Command::from_string("test2", "ls -la ..").unwrap())
+            .command(Command::from_string("test3", "ls -la ../..").unwrap()),
     );
 
     for msg in &handle {

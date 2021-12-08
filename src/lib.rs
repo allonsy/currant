@@ -47,14 +47,14 @@ pub trait CommandOperations
 where
     Self: Sized,
 {
-    fn new<S, C, ArgType, Cmds>(name: S, command: C, args: Cmds) -> Result<Self, CommandError>
+    fn argv<S, C, ArgType, Cmds>(name: S, command: C, args: Cmds) -> Result<Self, CommandError>
     where
         S: Into<String>,
         C: Into<String>,
         ArgType: Into<String>,
         Cmds: IntoIterator<Item = ArgType>;
 
-    fn full_cmd<S, C>(name: S, command_string: C) -> Result<Self, CommandError>
+    fn from_string<S, C>(name: S, command_string: C) -> Result<Self, CommandError>
     where
         S: Into<String>,
         C: Into<String>;
@@ -78,7 +78,7 @@ pub trait CommandLike: Clone {
 }
 
 impl<T: CommandLike> CommandOperations for T {
-    fn new<S, C, ArgType, Cmds>(name: S, command: C, args: Cmds) -> Result<Self, CommandError>
+    fn argv<S, C, ArgType, Cmds>(name: S, command: C, args: Cmds) -> Result<Self, CommandError>
     where
         S: Into<String>,
         C: Into<String>,
@@ -99,7 +99,7 @@ impl<T: CommandLike> CommandOperations for T {
         }))
     }
 
-    fn full_cmd<S, C>(name: S, command_string: C) -> Result<Self, CommandError>
+    fn from_string<S, C>(name: S, command_string: C) -> Result<Self, CommandError>
     where
         S: Into<String>,
         C: Into<String>,
