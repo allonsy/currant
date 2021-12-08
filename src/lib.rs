@@ -70,7 +70,7 @@ where
         V: Into<String>;
 }
 
-pub trait CommandLike {
+pub trait CommandLike: Clone {
     fn insert_command(cmd: Command) -> Self;
 
     fn get_command(&self) -> &Command;
@@ -246,13 +246,13 @@ pub struct Runner<C: CommandLike> {
     file_handle_flags: bool,
 }
 
-impl<C: CommandLike + Clone> Default for Runner<C> {
+impl<C: CommandLike> Default for Runner<C> {
     fn default() -> Self {
         Runner::new()
     }
 }
 
-impl<CL: CommandLike + Clone> Runner<CL> {
+impl<CL: CommandLike> Runner<CL> {
     pub fn new() -> Self {
         Runner {
             commands: Vec::new(),
@@ -294,7 +294,7 @@ impl<CL: CommandLike + Clone> Runner<CL> {
     }
 }
 
-pub fn run_commands<CL: CommandLike + Clone>(runner: &Runner<CL>) -> CommandHandle {
+pub fn run_commands<CL: CommandLike>(runner: &Runner<CL>) -> CommandHandle {
     let actual_cmds = runner
         .commands
         .iter()
