@@ -1,5 +1,3 @@
-use crate::CommandLike;
-
 use super::color;
 use super::color::Color;
 use super::Command;
@@ -7,7 +5,7 @@ use super::CommandError;
 use super::ControlledCommandHandle;
 use super::OutputMessagePayload;
 use super::Runner;
-
+use crate::CommandLike;
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::mpsc;

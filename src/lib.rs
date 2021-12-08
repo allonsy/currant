@@ -20,7 +20,6 @@ pub use color::Color;
 pub use standard_out_api::parse_command_string;
 pub use standard_out_api::run_commands_stdout;
 pub use standard_out_api::ConsoleCommand;
-
 pub use writer_api::run_commands_writer;
 
 #[derive(Debug)]
