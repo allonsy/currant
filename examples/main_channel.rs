@@ -11,7 +11,7 @@ fn main() {
             .command(Command::full_cmd("test3", "ls -la ../..").unwrap()),
     );
 
-    for msg in handle.iter() {
+    for msg in &handle {
         print!("{}: ", msg.name);
         match msg.message {
             OutputMessagePayload::Done(status) => println!("exited with status: {:?}", status),

@@ -166,10 +166,6 @@ pub struct CommandHandle {
     kill_trigger: kill_barrier::KillBarrier,
 }
 
-pub struct HandleIterator<'a> {
-    channel: &'a mpsc::Receiver<OutputMessage>,
-}
-
 impl CommandHandle {
     pub fn join(self) -> Result<Vec<Option<ExitStatus>>, String> {
         self.handle
@@ -184,12 +180,6 @@ impl CommandHandle {
     pub fn kill(&self) {
         let _ = self.kill_trigger.initiate_kill();
     }
-
-    pub fn iter(&self) -> HandleIterator {
-        HandleIterator {
-            channel: &self.channel,
-        }
-    }
 }
 
 impl Iterator for CommandHandle {
@@ -200,7 +190,7 @@ impl Iterator for CommandHandle {
     }
 }
 
-impl<'a> Iterator for HandleIterator<'a> {
+impl Iterator for &CommandHandle {
     type Item = OutputMessage;
 
     fn next(&mut self) -> Option<OutputMessage> {
