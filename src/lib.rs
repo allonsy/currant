@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use std::io;
 use std::io::BufRead;
 use std::io::BufReader;
-use std::path::Path;
 use std::path::PathBuf;
 use std::process;
 use std::process::ExitStatus;
@@ -51,24 +50,24 @@ where
 {
     fn new<S, C, ArgType, Cmds>(name: S, command: C, args: Cmds) -> Result<Self, CommandError>
     where
-        S: AsRef<str>,
-        C: AsRef<str>,
-        ArgType: AsRef<str>,
+        S: Into<String>,
+        C: Into<String>,
+        ArgType: Into<String>,
         Cmds: IntoIterator<Item = ArgType>;
 
     fn full_cmd<S, C>(name: S, command_string: C) -> Result<Self, CommandError>
     where
-        S: AsRef<str>,
-        C: AsRef<str>;
+        S: Into<String>,
+        C: Into<String>;
 
     fn cur_dir<D>(&mut self, dir: D) -> &mut Self
     where
-        D: AsRef<Path>;
+        D: Into<PathBuf>;
 
     fn env<K, V>(&mut self, key: K, val: V) -> &mut Self
     where
-        K: AsRef<str>,
-        V: AsRef<str>;
+        K: Into<String>,
+        V: Into<String>;
 }
 
 pub trait CommandLike {
@@ -82,21 +81,19 @@ pub trait CommandLike {
 impl<T: CommandLike> CommandOperations for T {
     fn new<S, C, ArgType, Cmds>(name: S, command: C, args: Cmds) -> Result<Self, CommandError>
     where
-        S: AsRef<str>,
-        C: AsRef<str>,
-        ArgType: AsRef<str>,
+        S: Into<String>,
+        C: Into<String>,
+        ArgType: Into<String>,
         Cmds: IntoIterator<Item = ArgType>,
     {
-        if name.as_ref().is_empty() {
+        let name = name.into();
+        if name.is_empty() {
             return Err(CommandError::EmptyCommand);
         }
-        let converted_args = args
-            .into_iter()
-            .map(|s| s.as_ref().to_string())
-            .collect::<Vec<String>>();
+        let converted_args = args.into_iter().map(|s| s.into()).collect::<Vec<String>>();
         Ok(T::insert_command(Command {
-            name: name.as_ref().to_string(),
-            command: command.as_ref().to_string(),
+            name,
+            command: command.into(),
             args: converted_args,
             cur_dir: None,
             env: HashMap::new(),
@@ -105,12 +102,12 @@ impl<T: CommandLike> CommandOperations for T {
 
     fn full_cmd<S, C>(name: S, command_string: C) -> Result<Self, CommandError>
     where
-        S: AsRef<str>,
-        C: AsRef<str>,
+        S: Into<String>,
+        C: Into<String>,
     {
         let (command, args) = parse_command_string(command_string)?;
         Ok(T::insert_command(Command {
-            name: name.as_ref().to_string(),
+            name: name.into(),
             command,
             args,
             cur_dir: None,
@@ -120,20 +117,18 @@ impl<T: CommandLike> CommandOperations for T {
 
     fn cur_dir<D>(&mut self, dir: D) -> &mut Self
     where
-        D: AsRef<Path>,
+        D: Into<PathBuf>,
     {
-        self.get_command_mut().cur_dir = Some(dir.as_ref().to_path_buf());
+        self.get_command_mut().cur_dir = Some(dir.into());
         self
     }
 
     fn env<K, V>(&mut self, key: K, val: V) -> &mut Self
     where
-        K: AsRef<str>,
-        V: AsRef<str>,
+        K: Into<String>,
+        V: Into<String>,
     {
-        self.get_command_mut()
-            .env
-            .insert(key.as_ref().to_string(), val.as_ref().to_string());
+        self.get_command_mut().env.insert(key.into(), val.into());
         self
     }
 }

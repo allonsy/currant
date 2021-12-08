@@ -181,10 +181,11 @@ fn process_channel(
 
 pub fn parse_command_string<S>(command: S) -> Result<(String, Vec<String>), CommandError>
 where
-    S: AsRef<str>,
+    S: Into<String>,
 {
-    let mut words = shell_words::split(command.as_ref())
-        .map_err(|_| CommandError::ParseError(command.as_ref().to_string()))?;
+    let command_string = command.into();
+    let mut words = shell_words::split(&command_string)
+        .map_err(|_| CommandError::ParseError(command_string))?;
     if words.is_empty() {
         return Err(CommandError::EmptyCommand);
     }
