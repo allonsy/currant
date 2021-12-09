@@ -71,7 +71,7 @@ impl Command {
     pub fn full_cmd<S, C>(name: S, command_string: C) -> Result<Command, CommandError>
     where
         S: AsRef<str>,
-        C: AsRef<str>,
+        C: AsRf<str>,
     {
         let (command, args) = parse_command_string(command_string)?;
         Ok(Command {
