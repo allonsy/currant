@@ -19,13 +19,11 @@ fn main() {
 }
 
 fn run_cmds(file: File) {
-    let handle = currant::run_commands_writer(
-        Runner::new()
-            .command(Command::from_string("test1", "ls -la .").unwrap())
-            .command(Command::from_string("test2", "ls -la ..").unwrap())
-            .command(Command::from_string("test3", "ls -la ../..").unwrap()),
-        file,
-    );
+    let handle = Runner::new()
+        .command(Command::from_string("test1", "ls -la .").unwrap())
+        .command(Command::from_string("test2", "ls -la ..").unwrap())
+        .command(Command::from_string("test3", "ls -la ../..").unwrap())
+        .execute_writer(file);
 
     handle.join().unwrap();
 }

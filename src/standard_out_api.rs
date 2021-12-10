@@ -202,17 +202,16 @@ mod tests {
 
     #[test]
     fn run_commands() {
-        let handle = run_commands_stdout(
-            Runner::new()
-                .command(ConsoleCommand::from_string("test1", "ls -la .").unwrap())
-                .command(ConsoleCommand::from_string("test2", "ls -la ..").unwrap())
-                .command(
-                    ConsoleCommand::from_string("test3", "ls -la ../..")
-                        .unwrap()
-                        .cur_dir(".."),
-                )
-                .restart(RestartOptions::Kill),
-        );
+        let handle = Runner::new()
+            .command(ConsoleCommand::from_string("test1", "ls -la .").unwrap())
+            .command(ConsoleCommand::from_string("test2", "ls -la ..").unwrap())
+            .command(
+                ConsoleCommand::from_string("test3", "ls -la ../..")
+                    .unwrap()
+                    .cur_dir(".."),
+            )
+            .restart(RestartOptions::Kill)
+            .execute();
         let _ = handle.join();
     }
 }

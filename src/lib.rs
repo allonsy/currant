@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::io;
 use std::io::BufRead;
 use std::io::BufReader;
+use std::io::Write;
 use std::path::PathBuf;
 use std::process;
 use std::process::ExitStatus;
@@ -18,9 +19,7 @@ use std::thread;
 
 pub use color::Color;
 pub use standard_out_api::parse_command_string;
-pub use standard_out_api::run_commands_stdout;
 pub use standard_out_api::ConsoleCommand;
-pub use writer_api::run_commands_writer;
 
 #[derive(Debug)]
 pub enum CommandError {
@@ -283,7 +282,26 @@ impl<CL: CommandLike> Runner<CL> {
     }
 }
 
-pub fn run_commands<CL: CommandLike>(runner: &Runner<CL>) -> CommandHandle {
+impl Runner<Command> {
+    pub fn execute(&mut self) -> CommandHandle {
+        run_commands(self)
+    }
+
+    pub fn execute_writer<W: Write + Send + 'static>(
+        &mut self,
+        writer: W,
+    ) -> ControlledCommandHandle {
+        writer_api::run_commands_writer(self, writer)
+    }
+}
+
+impl Runner<ConsoleCommand> {
+    pub fn execute(&mut self) -> ControlledCommandHandle {
+        standard_out_api::run_commands_stdout(self)
+    }
+}
+
+fn run_commands<CL: CommandLike>(runner: &Runner<CL>) -> CommandHandle {
     let actual_cmds = runner
         .commands
         .iter()

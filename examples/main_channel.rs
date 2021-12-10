@@ -4,12 +4,11 @@ use currant::OutputMessagePayload;
 use currant::Runner;
 
 fn main() {
-    let handle = currant::run_commands(
-        Runner::new()
-            .command(Command::from_string("test1", "ls -la .").unwrap())
-            .command(Command::from_string("test2", "ls -la ..").unwrap())
-            .command(Command::from_string("test3", "ls -la ../..").unwrap()),
-    );
+    let handle = Runner::new()
+        .command(Command::from_string("test1", "ls -la .").unwrap())
+        .command(Command::from_string("test2", "ls -la ..").unwrap())
+        .command(Command::from_string("test3", "ls -la ../..").unwrap())
+        .execute();
 
     for msg in &handle {
         print!("{}: ", msg.name);
