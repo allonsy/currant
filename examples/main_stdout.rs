@@ -1,5 +1,5 @@
 use currant::Color;
-use currant::CommandOperations;
+use currant::Command;
 use currant::ConsoleCommand;
 use currant::Runner;
 fn main() {

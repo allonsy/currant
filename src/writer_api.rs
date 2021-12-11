@@ -1,12 +1,32 @@
 use super::Command;
 use super::ControlledCommandHandle;
+use super::InnerCommand;
 use super::OutputMessagePayload;
 use super::Runner;
 use std::io::Write;
 use std::sync::mpsc;
 use std::thread;
 
-pub fn run_commands_writer<W>(runner: &Runner<Command>, writer: W) -> ControlledCommandHandle
+#[derive(Clone)]
+pub struct WriterCommand {
+    inner_command: InnerCommand,
+}
+
+impl Command for WriterCommand {
+    fn insert_command(cmd: InnerCommand) -> Self {
+        WriterCommand { inner_command: cmd }
+    }
+
+    fn get_command(&self) -> &InnerCommand {
+        &self.inner_command
+    }
+
+    fn get_command_mut(&mut self) -> &mut InnerCommand {
+        &mut self.inner_command
+    }
+}
+
+pub fn run_commands_writer<W>(runner: &Runner<WriterCommand>, writer: W) -> ControlledCommandHandle
 where
     W: Write + Send + 'static,
 {
@@ -15,7 +35,7 @@ where
     let recv = handle.channel;
 
     thread::spawn(move || {
-        process_channel(recv, writer);
+        process_channel(&recv, writer);
     });
     ControlledCommandHandle {
         handle: handle.handle,
@@ -23,7 +43,7 @@ where
     }
 }
 
-fn process_channel<W>(chan: mpsc::Receiver<super::OutputMessage>, mut writer: W)
+fn process_channel<W>(chan: &mpsc::Receiver<super::OutputMessage>, mut writer: W)
 where
     W: Write + Send,
 {

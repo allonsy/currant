@@ -3,9 +3,9 @@ use super::color::Color;
 use super::Command;
 use super::CommandError;
 use super::ControlledCommandHandle;
+use super::InnerCommand;
 use super::OutputMessagePayload;
 use super::Runner;
-use crate::CommandLike;
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::mpsc;
@@ -13,36 +13,30 @@ use std::thread;
 
 #[derive(Clone)]
 pub struct ConsoleCommand {
-    inner_command: Command,
+    inner_command: InnerCommand,
     color: Color,
 }
 
-impl AsRef<ConsoleCommand> for ConsoleCommand {
-    fn as_ref(&self) -> &ConsoleCommand {
-        self
-    }
-}
-
 impl ConsoleCommand {
-    pub fn color(&mut self, color: Color) -> &mut Self {
+    pub fn color(mut self, color: Color) -> Self {
         self.color = color;
         self
     }
 }
 
-impl CommandLike for ConsoleCommand {
-    fn insert_command(cmd: Command) -> Self {
+impl Command for ConsoleCommand {
+    fn insert_command(cmd: InnerCommand) -> Self {
         ConsoleCommand {
             inner_command: cmd,
             color: Color::Random,
         }
     }
 
-    fn get_command(&self) -> &Command {
+    fn get_command(&self) -> &InnerCommand {
         &self.inner_command
     }
 
-    fn get_command_mut(&mut self) -> &mut Command {
+    fn get_command_mut(&mut self) -> &mut InnerCommand {
         &mut self.inner_command
     }
 }
@@ -53,7 +47,7 @@ pub fn run_commands_stdout(runner: &Runner<ConsoleCommand>) -> ControlledCommand
     let mut num_cmds = 0;
     let options = runner.to_options();
 
-    for cmd in runner.commands.iter() {
+    for cmd in &runner.commands {
         name_color_hash.insert(cmd.inner_command.name.to_string(), cmd.color.clone());
         inner_commands.push(cmd.inner_command.clone());
         num_cmds += 1;
@@ -69,7 +63,13 @@ pub fn run_commands_stdout(runner: &Runner<ConsoleCommand>) -> ControlledCommand
     let recv = handle.channel;
 
     thread::spawn(move || {
-        process_channel(recv, name_color_hash, num_cmds, verbose, file_handle_flags);
+        process_channel(
+            &recv,
+            &name_color_hash,
+            num_cmds,
+            verbose,
+            file_handle_flags,
+        );
     });
     ControlledCommandHandle {
         handle: handle.handle,
@@ -78,8 +78,8 @@ pub fn run_commands_stdout(runner: &Runner<ConsoleCommand>) -> ControlledCommand
 }
 
 fn process_channel(
-    chan: mpsc::Receiver<super::OutputMessage>,
-    color_map: HashMap<String, Color>,
+    chan: &mpsc::Receiver<super::OutputMessage>,
+    color_map: &HashMap<String, Color>,
     num_cmds: usize,
     verbose: bool,
     file_handle_flags: bool,
@@ -194,9 +194,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::run_commands_stdout;
     use super::ConsoleCommand;
-    use crate::CommandOperations;
+    use crate::Command;
     use crate::RestartOptions;
     use crate::Runner;
 
