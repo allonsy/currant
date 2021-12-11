@@ -3,93 +3,53 @@ use super::color::Color;
 use super::Command;
 use super::CommandError;
 use super::ControlledCommandHandle;
-use super::Options;
+use super::InnerCommand;
 use super::OutputMessagePayload;
-
+use super::Runner;
 use std::collections::HashMap;
 use std::io::Write;
-use std::path::Path;
 use std::sync::mpsc;
 use std::thread;
+
+#[derive(Clone)]
 pub struct ConsoleCommand {
-    inner_command: Command,
+    inner_command: InnerCommand,
     color: Color,
 }
 
 impl ConsoleCommand {
-    pub fn new<S, C, ArgType, Cmds>(
-        name: S,
-        command: C,
-        args: Cmds,
-    ) -> Result<ConsoleCommand, CommandError>
-    where
-        S: AsRef<str>,
-        C: AsRef<str>,
-        ArgType: AsRef<str>,
-        Cmds: IntoIterator<Item = ArgType>,
-    {
-        Ok(ConsoleCommand {
-            inner_command: Command::new(name, command, args)?,
-            color: Color::Random,
-        })
-    }
-
-    pub fn full_cmd<S, C>(name: S, command_string: C) -> Result<ConsoleCommand, CommandError>
-    where
-        S: AsRef<str>,
-        C: AsRef<str>,
-    {
-        let (command, args) = parse_command_string(command_string)?;
-        Ok(ConsoleCommand {
-            inner_command: Command::new(name, command, args)?,
-            color: Color::Random,
-        })
-    }
-
     pub fn color(mut self, color: Color) -> Self {
         self.color = color;
         self
     }
+}
 
-    pub fn cur_dir<D>(mut self, cur_dir: D) -> Self
-    where
-        D: AsRef<Path>,
-    {
-        self.inner_command = self.inner_command.cur_dir(cur_dir);
-        self
+impl Command for ConsoleCommand {
+    fn insert_command(cmd: InnerCommand) -> Self {
+        ConsoleCommand {
+            inner_command: cmd,
+            color: Color::Random,
+        }
     }
 
-    pub fn env<K, V>(mut self, key: K, val: V) -> Self
-    where
-        K: AsRef<str>,
-        V: AsRef<str>,
-    {
-        self.inner_command = self.inner_command.env(key, val);
-        self
+    fn get_command(&self) -> &InnerCommand {
+        &self.inner_command
+    }
+
+    fn get_command_mut(&mut self) -> &mut InnerCommand {
+        &mut self.inner_command
     }
 }
 
-pub fn run_commands_stdout<Cmds>(commands: Cmds) -> ControlledCommandHandle
-where
-    Cmds: IntoIterator<Item = ConsoleCommand>,
-{
-    run_commands_stdout_with_options(commands, super::Options::new())
-}
-
-pub fn run_commands_stdout_with_options<Cmds>(
-    commands: Cmds,
-    options: Options,
-) -> ControlledCommandHandle
-where
-    Cmds: IntoIterator<Item = ConsoleCommand>,
-{
+pub fn run_commands_stdout(runner: &Runner<ConsoleCommand>) -> ControlledCommandHandle {
     let mut name_color_hash = HashMap::new();
     let mut inner_commands = Vec::new();
     let mut num_cmds = 0;
+    let options = runner.to_options();
 
-    for cmd in commands {
+    for cmd in &runner.commands {
         name_color_hash.insert(cmd.inner_command.name.to_string(), cmd.color.clone());
-        inner_commands.push(cmd.inner_command);
+        inner_commands.push(cmd.inner_command.clone());
         num_cmds += 1;
     }
 
@@ -98,12 +58,18 @@ where
     let verbose = options.verbose;
     let file_handle_flags = options.file_handle_flags;
 
-    let handle = super::run_commands(inner_commands, options);
+    let handle = super::run_commands(runner);
 
     let recv = handle.channel;
 
     thread::spawn(move || {
-        process_channel(recv, name_color_hash, num_cmds, verbose, file_handle_flags);
+        process_channel(
+            &recv,
+            &name_color_hash,
+            num_cmds,
+            verbose,
+            file_handle_flags,
+        );
     });
     ControlledCommandHandle {
         handle: handle.handle,
@@ -112,8 +78,8 @@ where
 }
 
 fn process_channel(
-    chan: mpsc::Receiver<super::OutputMessage>,
-    color_map: HashMap<String, Color>,
+    chan: &mpsc::Receiver<super::OutputMessage>,
+    color_map: &HashMap<String, Color>,
     num_cmds: usize,
     verbose: bool,
     file_handle_flags: bool,
@@ -213,10 +179,11 @@ fn process_channel(
 
 pub fn parse_command_string<S>(command: S) -> Result<(String, Vec<String>), CommandError>
 where
-    S: AsRef<str>,
+    S: Into<String>,
 {
-    let mut words = shell_words::split(command.as_ref())
-        .map_err(|_| CommandError::ParseError(command.as_ref().to_string()))?;
+    let command_string = command.into();
+    let mut words = shell_words::split(&command_string)
+        .map_err(|_| CommandError::ParseError(command_string))?;
     if words.is_empty() {
         return Err(CommandError::EmptyCommand);
     }
@@ -227,25 +194,23 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::run_commands_stdout;
-
     use super::ConsoleCommand;
+    use crate::Command;
     use crate::RestartOptions;
+    use crate::Runner;
 
     #[test]
     fn run_commands() {
-        let commands = vec![
-            ConsoleCommand::full_cmd("test1", "ls -la .").unwrap(),
-            ConsoleCommand::full_cmd("test2", "ls -la ..").unwrap(),
-            ConsoleCommand::full_cmd("test3", "ls -la ../..")
-                .unwrap()
-                .cur_dir(".."),
-        ];
-
-        let mut opts = super::Options::new();
-        opts.restart(RestartOptions::Kill);
-
-        let handle = run_commands_stdout(commands);
+        let handle = Runner::new()
+            .command(ConsoleCommand::from_string("test1", "ls -la .").unwrap())
+            .command(ConsoleCommand::from_string("test2", "ls -la ..").unwrap())
+            .command(
+                ConsoleCommand::from_string("test3", "ls -la ../..")
+                    .unwrap()
+                    .cur_dir(".."),
+            )
+            .restart(RestartOptions::Kill)
+            .execute();
         let _ = handle.join();
     }
 }

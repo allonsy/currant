@@ -1,35 +1,41 @@
 use super::Command;
 use super::ControlledCommandHandle;
-use super::Options;
+use super::InnerCommand;
 use super::OutputMessagePayload;
-
+use super::Runner;
 use std::io::Write;
 use std::sync::mpsc;
 use std::thread;
 
-pub fn run_commands_writer<Cmds, W>(commands: Cmds, writer: W) -> ControlledCommandHandle
-where
-    Cmds: IntoIterator<Item = Command>,
-    W: Write + Send + 'static,
-{
-    run_commands_writer_with_options(commands, writer, super::Options::new())
+#[derive(Clone)]
+pub struct WriterCommand {
+    inner_command: InnerCommand,
 }
 
-pub fn run_commands_writer_with_options<Cmds, W>(
-    commands: Cmds,
-    writer: W,
-    options: Options,
-) -> ControlledCommandHandle
+impl Command for WriterCommand {
+    fn insert_command(cmd: InnerCommand) -> Self {
+        WriterCommand { inner_command: cmd }
+    }
+
+    fn get_command(&self) -> &InnerCommand {
+        &self.inner_command
+    }
+
+    fn get_command_mut(&mut self) -> &mut InnerCommand {
+        &mut self.inner_command
+    }
+}
+
+pub fn run_commands_writer<W>(runner: &Runner<WriterCommand>, writer: W) -> ControlledCommandHandle
 where
     W: Write + Send + 'static,
-    Cmds: IntoIterator<Item = Command>,
 {
-    let handle = super::run_commands(commands, options);
+    let handle = super::run_commands(runner);
 
     let recv = handle.channel;
 
     thread::spawn(move || {
-        process_channel(recv, writer);
+        process_channel(&recv, writer);
     });
     ControlledCommandHandle {
         handle: handle.handle,
@@ -37,7 +43,7 @@ where
     }
 }
 
-fn process_channel<W>(chan: mpsc::Receiver<super::OutputMessage>, mut writer: W)
+fn process_channel<W>(chan: &mpsc::Receiver<super::OutputMessage>, mut writer: W)
 where
     W: Write + Send,
 {
