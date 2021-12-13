@@ -94,8 +94,8 @@ fn process_channel(
         let output_color = color_map.get(&message.name).unwrap();
         let color_open_sequence = color::open_sequence(output_color);
         let color_reset_sequence = color::close_sequence();
-        let std_out_flag = if file_handle_flags { "(o)" } else { "" };
-        let std_err_flag = if file_handle_flags { "(e)" } else { "" };
+        let std_out_flag = if file_handle_flags { " (o)" } else { "" };
+        let std_err_flag = if file_handle_flags { " (e)" } else { "" };
         let mut stdout = std::io::stdout();
         let _ = stdout.write_all(color_open_sequence.as_bytes());
         let _ = match message.message {
@@ -140,7 +140,7 @@ fn process_channel(
             }
             OutputMessagePayload::Stdout(ending, mut bytes) => {
                 let mut prefix = format!(
-                    "{}{} {}:{} ",
+                    "{}{}{}:{} ",
                     color_open_sequence, message.name, std_out_flag, color_reset_sequence
                 )
                 .into_bytes();
@@ -154,7 +154,7 @@ fn process_channel(
             }
             OutputMessagePayload::Stderr(ending, mut bytes) => {
                 let mut prefix = format!(
-                    "{}{} {}:{} ",
+                    "{}{}{}:{} ",
                     color_open_sequence, message.name, std_err_flag, color_reset_sequence
                 )
                 .into_bytes();
