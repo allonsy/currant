@@ -235,8 +235,8 @@ impl<CL: Command> Runner<CL> {
         self
     }
 
-    pub fn quiet(&mut self, verbose_opt: bool) -> &mut Self {
-        self.quiet = verbose_opt;
+    pub fn quiet(&mut self, quiet_opt: bool) -> &mut Self {
+        self.quiet = quiet_opt;
         self
     }
 
@@ -248,7 +248,7 @@ impl<CL: Command> Runner<CL> {
     fn to_options(&self) -> Options {
         Options {
             restart: self.restart.clone(),
-            verbose: self.quiet,
+            verbose: !self.quiet,
             file_handle_flags: self.file_handle_flags,
         }
     }
