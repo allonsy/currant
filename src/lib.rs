@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::io;
 use std::io::BufRead;
 use std::io::BufReader;
-use std::path::Path;
+use std::io::Write;
 use std::path::PathBuf;
 use std::process;
 use std::process::ExitStatus;
@@ -19,12 +19,8 @@ use std::thread;
 
 pub use color::Color;
 pub use standard_out_api::parse_command_string;
-pub use standard_out_api::run_commands_stdout;
-pub use standard_out_api::run_commands_stdout_with_options;
 pub use standard_out_api::ConsoleCommand;
-
-pub use writer_api::run_commands_writer;
-pub use writer_api::run_commands_writer_with_options;
+pub use writer_api::WriterCommand;
 
 #[derive(Debug)]
 pub enum CommandError {
@@ -32,7 +28,27 @@ pub enum CommandError {
     ParseError(String),
 }
 
-pub struct Command {
+#[derive(Clone)]
+pub struct ChannelCommand {
+    inner_command: InnerCommand,
+}
+
+impl Command for ChannelCommand {
+    fn insert_command(cmd: InnerCommand) -> Self {
+        ChannelCommand { inner_command: cmd }
+    }
+
+    fn get_command(&self) -> &InnerCommand {
+        &self.inner_command
+    }
+
+    fn get_command_mut(&mut self) -> &mut InnerCommand {
+        &mut self.inner_command
+    }
+}
+
+#[derive(Clone)]
+pub struct InnerCommand {
     name: String,
     command: String,
     args: Vec<String>,
@@ -40,64 +56,66 @@ pub struct Command {
     env: HashMap<String, String>,
 }
 
-impl Command {
-    pub fn new<S, C, ArgType, Cmds>(
-        name: S,
-        command: C,
-        args: Cmds,
-    ) -> Result<Command, CommandError>
+pub trait Command
+where
+    Self: Sized,
+{
+    fn insert_command(cmd: InnerCommand) -> Self;
+
+    fn get_command(&self) -> &InnerCommand;
+
+    fn get_command_mut(&mut self) -> &mut InnerCommand;
+
+    fn from_argv<S, C, ArgType, Cmds>(name: S, command: C, args: Cmds) -> Result<Self, CommandError>
     where
-        S: AsRef<str>,
-        C: AsRef<str>,
-        ArgType: AsRef<str>,
+        S: Into<String>,
+        C: Into<String>,
+        ArgType: Into<String>,
         Cmds: IntoIterator<Item = ArgType>,
     {
-        if name.as_ref().is_empty() {
+        let name = name.into();
+        if name.is_empty() {
             return Err(CommandError::EmptyCommand);
         }
-        let converted_args = args
-            .into_iter()
-            .map(|s| s.as_ref().to_string())
-            .collect::<Vec<String>>();
-        Ok(Command {
-            name: name.as_ref().to_string(),
-            command: command.as_ref().to_string(),
+        let converted_args = args.into_iter().map(|s| s.into()).collect::<Vec<String>>();
+        Ok(Self::insert_command(InnerCommand {
+            name,
+            command: command.into(),
             args: converted_args,
             cur_dir: None,
             env: HashMap::new(),
-        })
+        }))
     }
 
-    pub fn full_cmd<S, C>(name: S, command_string: C) -> Result<Command, CommandError>
+    fn from_string<S, C>(name: S, command_string: C) -> Result<Self, CommandError>
     where
-        S: AsRef<str>,
-        C: AsRef<str>,
+        S: Into<String>,
+        C: Into<String>,
     {
         let (command, args) = parse_command_string(command_string)?;
-        Ok(Command {
-            name: name.as_ref().to_string(),
+        Ok(Self::insert_command(InnerCommand {
+            name: name.into(),
             command,
             args,
             cur_dir: None,
             env: HashMap::new(),
-        })
+        }))
     }
 
-    pub fn cur_dir<D>(mut self, dir: D) -> Self
+    fn cur_dir<D>(mut self, dir: D) -> Self
     where
-        D: AsRef<Path>,
+        D: Into<PathBuf>,
     {
-        self.cur_dir = Some(dir.as_ref().to_path_buf());
+        self.get_command_mut().cur_dir = Some(dir.into());
         self
     }
 
-    pub fn env<K, V>(mut self, key: K, val: V) -> Self
+    fn env<K, V>(mut self, key: K, val: V) -> Self
     where
-        K: AsRef<str>,
-        V: AsRef<str>,
+        K: Into<String>,
+        V: Into<String>,
     {
-        self.env
-            .insert(key.as_ref().to_string(), val.as_ref().to_string());
+        self.get_command_mut().env.insert(key.into(), val.into());
         self
     }
 }
@@ -137,6 +155,22 @@ impl CommandHandle {
     }
 }
 
+impl Iterator for CommandHandle {
+    type Item = OutputMessage;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.channel.recv().ok()
+    }
+}
+
+impl Iterator for &CommandHandle {
+    type Item = OutputMessage;
+
+    fn next(&mut self) -> Option<OutputMessage> {
+        self.channel.recv().ok()
+    }
+}
+
 pub struct ControlledCommandHandle {
     handle: thread::JoinHandle<Vec<Option<ExitStatus>>>,
     kill_trigger: kill_barrier::KillBarrier,
@@ -162,49 +196,92 @@ pub enum RestartOptions {
 }
 
 #[derive(Clone)]
-pub struct Options {
+struct Options {
     restart: RestartOptions,
-    verbose: bool,
+    quiet: bool,
     file_handle_flags: bool,
 }
 
-impl Options {
-    pub fn new() -> Options {
-        Options {
+pub struct Runner<C: Command> {
+    commands: Vec<C>,
+    restart: RestartOptions,
+    quiet: bool,
+    file_handle_flags: bool,
+}
+
+impl<C: Command> Default for Runner<C> {
+    fn default() -> Self {
+        Runner::new()
+    }
+}
+
+impl<CL: Command> Runner<CL> {
+    pub fn new() -> Self {
+        Runner {
+            commands: Vec::new(),
             restart: RestartOptions::Continue,
-            verbose: true,
-            file_handle_flags: true,
+            quiet: false,
+            file_handle_flags: false,
         }
     }
 
-    pub fn verbose(&mut self, verbose: bool) {
-        self.verbose = verbose;
+    pub fn command(&mut self, cmd: CL) -> &mut Self {
+        self.commands.push(cmd);
+        self
     }
 
-    pub fn restart(&mut self, restart: RestartOptions) {
-        self.restart = restart;
+    pub fn restart(&mut self, restart_opt: RestartOptions) -> &mut Self {
+        self.restart = restart_opt;
+        self
     }
 
-    pub fn file_handle_flags(&mut self, file_handle_flags: bool) {
-        self.file_handle_flags = file_handle_flags;
+    pub fn quiet(&mut self, quiet_opt: bool) -> &mut Self {
+        self.quiet = quiet_opt;
+        self
+    }
+
+    pub fn should_show_file_handle(&mut self, file_handle_flag_opt: bool) -> &mut Self {
+        self.file_handle_flags = file_handle_flag_opt;
+        self
+    }
+
+    fn to_options(&self) -> Options {
+        Options {
+            restart: self.restart.clone(),
+            quiet: self.quiet,
+            file_handle_flags: self.file_handle_flags,
+        }
     }
 }
 
-impl Default for Options {
-    fn default() -> Self {
-        Self::new()
+impl Runner<ChannelCommand> {
+    pub fn execute(&mut self) -> CommandHandle {
+        run_commands(self)
     }
 }
 
-pub fn run_commands<Cmds>(commands: Cmds, options: Options) -> CommandHandle
-where
-    Cmds: IntoIterator<Item = Command>,
-{
-    let actual_cmds = commands.into_iter().collect::<Vec<Command>>();
-    run_commands_internal(actual_cmds, options)
+impl Runner<WriterCommand> {
+    pub fn execute<W: Write + Send + 'static>(&mut self, writer: W) -> ControlledCommandHandle {
+        writer_api::run_commands_writer(self, writer)
+    }
 }
 
-fn run_commands_internal(commands: Vec<Command>, options: Options) -> CommandHandle {
+impl Runner<ConsoleCommand> {
+    pub fn execute(&mut self) -> ControlledCommandHandle {
+        standard_out_api::run_commands_stdout(self)
+    }
+}
+
+fn run_commands<C: Command>(runner: &Runner<C>) -> CommandHandle {
+    let actual_cmds = runner
+        .commands
+        .iter()
+        .map(|c| c.get_command().clone())
+        .collect::<Vec<InnerCommand>>();
+    run_commands_internal(actual_cmds, runner.to_options())
+}
+
+fn run_commands_internal(commands: Vec<InnerCommand>, options: Options) -> CommandHandle {
     let (send, recv) = mpsc::channel();
     let kill_trigger = kill_barrier::KillBarrier::new();
     let kill_trigger_clone = kill_trigger.clone();
@@ -235,8 +312,8 @@ fn run_commands_internal(commands: Vec<Command>, options: Options) -> CommandHan
     }
 }
 
-pub fn run_command(
-    command: Command,
+fn run_command(
+    command: InnerCommand,
     send_chan: mpsc::Sender<OutputMessage>,
     options: Options,
     kill_trigger: kill_barrier::KillBarrier,
@@ -268,14 +345,14 @@ pub fn run_command(
 
         let child_clone = shared_handle.clone();
         let kill_trigger_clone = kill_trigger.clone();
-        thread::spawn(move || kill_thread(kill_trigger_clone, child_clone));
+        thread::spawn(move || kill_thread(&kill_trigger_clone, child_clone));
 
         if let Some(output) = std_out {
             let mut buffered_stdout = BufReader::new(output);
             let new_name = command_name.clone();
             let new_chan = send_chan.clone();
             std_out_handle = Some(thread::spawn(move || {
-                read_stream(new_name, new_chan, &mut buffered_stdout, true);
+                read_stream(&new_name, new_chan, &mut buffered_stdout, true);
             }));
         }
 
@@ -284,7 +361,7 @@ pub fn run_command(
             let new_name = command_name.clone();
             let new_chan = send_chan.clone();
             std_err_handle = Some(thread::spawn(move || {
-                read_stream(new_name, new_chan, &mut buffered_stdout, false);
+                read_stream(&new_name, new_chan, &mut buffered_stdout, false);
             }));
         }
 
@@ -332,7 +409,7 @@ pub fn run_command(
     })
 }
 
-fn kill_thread(kill_trigger: kill_barrier::KillBarrier, child: Arc<Mutex<process::Child>>) {
+fn kill_thread(kill_trigger: &kill_barrier::KillBarrier, child: Arc<Mutex<process::Child>>) {
     let _ = kill_trigger.wait();
 
     let lock_res = child.lock();
@@ -342,7 +419,7 @@ fn kill_thread(kill_trigger: kill_barrier::KillBarrier, child: Arc<Mutex<process
 }
 
 fn read_stream<R>(
-    cmd_name: String,
+    cmd_name: &str,
     send_chan: mpsc::Sender<OutputMessage>,
     reader: &mut R,
     is_stdout: bool,
@@ -354,7 +431,7 @@ fn read_stream<R>(
         match line {
             Ok(Some(line_vec)) => {
                 let _ = send_chan.send(OutputMessage {
-                    name: cmd_name.clone(),
+                    name: cmd_name.to_string(),
                     message: if is_stdout {
                         OutputMessagePayload::Stdout(line_vec.0, line_vec.1)
                     } else {
@@ -367,7 +444,7 @@ fn read_stream<R>(
             }
             Err(e) => {
                 let _ = send_chan.send(OutputMessage {
-                    name: cmd_name.clone(),
+                    name: cmd_name.to_string(),
                     message: OutputMessagePayload::Error(e),
                 });
             }

@@ -36,9 +36,9 @@ where
                 reader.consume(num_consumed);
                 if seen_cr {
                     return Ok(Some((LineEnding::Crlf, read_bytes)));
-                } else {
-                    return Ok(Some((LineEnding::Lf, read_bytes)));
                 }
+
+                return Ok(Some((LineEnding::Lf, read_bytes)));
             } else if seen_cr {
                 reader.consume(num_consumed - 1);
                 return Ok(Some((LineEnding::Cr, read_bytes)));
