@@ -4,7 +4,6 @@ mod line_parse;
 mod standard_out_api;
 mod writer_api;
 
-use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::io;
 use std::io::BufRead;
@@ -57,7 +56,7 @@ pub struct InnerCommand {
     env: HashMap<String, String>,
 }
 
-pub trait Command: Clone
+pub trait Command
 where
     Self: Sized,
 {
@@ -199,7 +198,7 @@ pub enum RestartOptions {
 #[derive(Clone)]
 struct Options {
     restart: RestartOptions,
-    verbose: bool,
+    quiet: bool,
     file_handle_flags: bool,
 }
 
@@ -226,8 +225,8 @@ impl<CL: Command> Runner<CL> {
         }
     }
 
-    pub fn command<T: Borrow<CL>>(&mut self, cmd: T) -> &mut Runner<CL> {
-        self.commands.push(cmd.borrow().clone());
+    pub fn command(&mut self, cmd: CL) -> &mut Self {
+        self.commands.push(cmd);
         self
     }
 
@@ -249,14 +248,14 @@ impl<CL: Command> Runner<CL> {
     fn to_options(&self) -> Options {
         Options {
             restart: self.restart.clone(),
-            verbose: !self.quiet,
+            quiet: self.quiet,
             file_handle_flags: self.file_handle_flags,
         }
     }
 }
 
 impl Runner<ChannelCommand> {
-    pub fn execute(&self) -> CommandHandle {
+    pub fn execute(&mut self) -> CommandHandle {
         run_commands(self)
     }
 }
