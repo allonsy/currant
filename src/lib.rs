@@ -108,7 +108,7 @@ where
         }))
     }
 
-    fn cur_dir<D>(&mut self, dir: D) -> &Self
+    fn cur_dir<D>(&mut self, dir: D) -> &mut Self
     where
         D: Into<PathBuf>,
     {
@@ -116,7 +116,7 @@ where
         self
     }
 
-    fn env<K, V>(&mut self, key: K, val: V) -> &Self
+    fn env<K, V>(&mut self, key: K, val: V) -> &mut Self
     where
         K: Into<String>,
         V: Into<String>,
