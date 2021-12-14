@@ -1,0 +1,18 @@
+name: publish code
+on:
+  push:
+    branches:
+      - master
+    tags
+jobs:
+  publish-code:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1.0.6
+        with:
+          toolchain: stable
+      - run: cargo build
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: cargo publish
+    
