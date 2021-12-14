@@ -55,7 +55,7 @@ pub fn run_commands_stdout(runner: &Runner<ConsoleCommand>) -> ControlledCommand
 
     color::populate_random_colors(&mut name_color_hash);
 
-    let verbose = options.verbose;
+    let quiet = options.quiet;
     let file_handle_flags = options.file_handle_flags;
 
     let handle = super::run_commands(runner);
@@ -63,13 +63,7 @@ pub fn run_commands_stdout(runner: &Runner<ConsoleCommand>) -> ControlledCommand
     let recv = handle.channel;
 
     thread::spawn(move || {
-        process_channel(
-            &recv,
-            &name_color_hash,
-            num_cmds,
-            verbose,
-            file_handle_flags,
-        );
+        process_channel(&recv, &name_color_hash, num_cmds, quiet, file_handle_flags);
     });
     ControlledCommandHandle {
         handle: handle.handle,
@@ -81,7 +75,7 @@ fn process_channel(
     chan: &mpsc::Receiver<super::OutputMessage>,
     color_map: &HashMap<String, Color>,
     num_cmds: usize,
-    verbose: bool,
+    quiet: bool,
     file_handle_flags: bool,
 ) {
     loop {
@@ -100,7 +94,7 @@ fn process_channel(
         let _ = stdout.write_all(color_open_sequence.as_bytes());
         let _ = match message.message {
             OutputMessagePayload::Start => {
-                if verbose {
+                if !quiet {
                     stdout.write_all(
                         format!(
                             "{}SYSTEM: starting process {}{}\n",
@@ -113,7 +107,7 @@ fn process_channel(
                 }
             }
             OutputMessagePayload::Done(Some(exit_status)) => {
-                if verbose {
+                if !quiet {
                     stdout.write_all(
                         format!(
                             "{}{}:{} process exited with status: {}\n",
@@ -126,7 +120,7 @@ fn process_channel(
                 }
             }
             OutputMessagePayload::Done(None) => {
-                if verbose {
+                if !quiet {
                     stdout.write_all(
                         format!(
                             "{}{}:{} process exited without exit status\n",
