@@ -41,6 +41,12 @@ impl Command for ConsoleCommand {
     }
 }
 
+impl AsRef<ConsoleCommand> for ConsoleCommand {
+    fn as_ref(&self) -> &ConsoleCommand {
+        self
+    }
+}
+
 pub fn run_commands_stdout(runner: &Runner<ConsoleCommand>) -> ControlledCommandHandle {
     let mut name_color_hash = HashMap::new();
     let mut inner_commands = Vec::new();

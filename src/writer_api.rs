@@ -26,6 +26,12 @@ impl Command for WriterCommand {
     }
 }
 
+impl AsRef<WriterCommand> for WriterCommand {
+    fn as_ref(&self) -> &WriterCommand {
+        self
+    }
+}
+
 pub fn run_commands_writer<W>(runner: &Runner<WriterCommand>, writer: W) -> ControlledCommandHandle
 where
     W: Write + Send + 'static,
