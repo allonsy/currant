@@ -3,7 +3,8 @@ on:
   push:
     branches:
       - master
-    tags
+    tags:
+      - *
 jobs:
   publish-code:
     runs-on: ubuntu-latest
