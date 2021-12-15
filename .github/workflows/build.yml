@@ -1,4 +1,4 @@
-name: build and lint code
+name: build
 on: [push]
 jobs:
   build-code:
@@ -10,4 +10,3 @@ jobs:
               toolchain: stable
       - run: cargo check
       - run: cargo clippy --all-targets --all-features -- -D warnings
-    
