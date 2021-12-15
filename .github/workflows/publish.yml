@@ -1,0 +1,21 @@
+name: publish code
+on:
+  push:
+    tags:
+      - 'v*'
+jobs:
+  publish-code:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1.0.6
+        with:
+          toolchain: stable
+      - run: cargo build
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: cargo login
+        env:
+          cargo_token: ${{ secrets.CARGO_TOKEN }}
+        run: cargo login $cargo_token
+      - run: cargo publish
+    
