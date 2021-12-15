@@ -133,14 +133,16 @@ pub enum OutputMessagePayload {
     Error(io::Error),
 }
 
+pub type ExitResult = (String, Option<ExitStatus>);
+
 pub struct CommandHandle {
-    handle: thread::JoinHandle<Vec<Option<ExitStatus>>>,
+    handle: thread::JoinHandle<Vec<ExitResult>>,
     channel: mpsc::Receiver<OutputMessage>,
     kill_trigger: kill_barrier::KillBarrier,
 }
 
 impl CommandHandle {
-    pub fn join(self) -> Result<Vec<Option<ExitStatus>>, String> {
+    pub fn join(self) -> Result<Vec<ExitResult>, String> {
         self.handle
             .join()
             .map_err(|_| "Thread panic'ed before exit".to_string())
@@ -172,12 +174,12 @@ impl Iterator for &CommandHandle {
 }
 
 pub struct ControlledCommandHandle {
-    handle: thread::JoinHandle<Vec<Option<ExitStatus>>>,
+    handle: thread::JoinHandle<Vec<ExitResult>>,
     kill_trigger: kill_barrier::KillBarrier,
 }
 
 impl ControlledCommandHandle {
-    pub fn join(self) -> Result<Vec<Option<ExitStatus>>, String> {
+    pub fn join(self) -> Result<Vec<ExitResult>, String> {
         self.handle
             .join()
             .map_err(|_| "thread panic'ed before exit".to_string())
@@ -286,6 +288,8 @@ fn run_commands_internal(commands: Vec<InnerCommand>, options: Options) -> Comma
     let kill_trigger = kill_barrier::KillBarrier::new();
     let kill_trigger_clone = kill_trigger.clone();
 
+    let command_names: Vec<String> = commands.iter().map(|cmd| cmd.name.clone()).collect();
+
     let handle = thread::spawn(move || {
         let mut handles = Vec::new();
         let mut statuses = Vec::new();
@@ -298,8 +302,8 @@ fn run_commands_internal(commands: Vec<InnerCommand>, options: Options) -> Comma
             ));
         }
 
-        for handle in handles {
-            statuses.push(handle.join().unwrap_or(None));
+        for (idx, handle) in handles.into_iter().enumerate() {
+            statuses.push(handle.join().unwrap_or((command_names[idx].clone(), None)));
         }
 
         statuses
@@ -317,7 +321,7 @@ fn run_command(
     send_chan: mpsc::Sender<OutputMessage>,
     options: Options,
     kill_trigger: kill_barrier::KillBarrier,
-) -> thread::JoinHandle<Option<ExitStatus>> {
+) -> thread::JoinHandle<ExitResult> {
     thread::spawn(move || loop {
         let mut command_process = process::Command::new(&command.command);
         command_process.args(&command.args);
@@ -383,27 +387,27 @@ fn run_command(
 
                 match options.restart {
                     RestartOptions::Continue => {
-                        return Some(status);
+                        return (command_name, Some(status));
                     }
                     RestartOptions::Restart => {
                         if status.success() {
-                            return Some(status);
+                            return (command_name, Some(status));
                         }
                     }
                     RestartOptions::Kill => {
                         if !status.success() {
                             let _ = kill_trigger.initiate_kill();
                         }
-                        return Some(status);
+                        return (command_name, Some(status));
                     }
                 };
             }
             Err(e) => {
                 let _ = send_chan.send(OutputMessage {
-                    name: command_name,
+                    name: command_name.clone(),
                     message: OutputMessagePayload::Error(e),
                 });
-                return None;
+                return (command_name, None);
             }
         }
     })
