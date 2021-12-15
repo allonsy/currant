@@ -2,7 +2,7 @@ name: publish code
 on:
   push:
     branches:
-      - master
+      - main
     tags:
       - '*'
 jobs:
