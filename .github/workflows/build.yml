@@ -8,6 +8,6 @@ jobs:
       - uses: actions-rs/toolchain@v1.0.6
         with:
               toolchain: stable
-      - run: cargo build
+      - run: cargo check
       - run: cargo clippy --all-targets --all-features -- -D warnings
     
