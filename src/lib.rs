@@ -200,7 +200,7 @@ pub enum RestartOptions {
 #[derive(Clone)]
 struct Options {
     restart: RestartOptions,
-    verbose: bool,
+    quiet: bool,
     file_handle_flags: bool,
 }
 
@@ -250,7 +250,7 @@ impl<CL: Command> Runner<CL> {
     fn to_options(&self) -> Options {
         Options {
             restart: self.restart.clone(),
-            verbose: !self.quiet,
+            quiet: self.quiet,
             file_handle_flags: self.file_handle_flags,
         }
     }
