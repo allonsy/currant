@@ -2,7 +2,7 @@ name: publish code
 on:
   push:
     tags:
-      - '*'
+      - 'v*'
 jobs:
   publish-code:
     runs-on: ubuntu-latest
