@@ -11,11 +11,10 @@ jobs:
       - uses: actions-rs/toolchain@v1.0.6
         with:
           toolchain: stable
-      - run: cargo build
+      - run: cargo check
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - name: cargo login
         env:
           cargo_token: ${{ secrets.CARGO_TOKEN }}
         run: cargo login $cargo_token
       - run: cargo publish
-    
