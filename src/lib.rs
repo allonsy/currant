@@ -5,7 +5,7 @@ mod standard_out_api;
 mod writer_api;
 
 use std::collections::HashMap;
-use std::io;
+use std::io
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Write;
