@@ -22,6 +22,7 @@ pub use writer_api::WriterCommand;
 #[derive(Debug)]
 pub enum CommandError {
     EmptyCommand,
+    CommandNotFound(String),
     ParseError(String),
 }
 
@@ -98,13 +99,16 @@ where
         Cmds: IntoIterator<Item = ArgType>,
     {
         let name = name.into();
-        if name.is_empty() {
+        let cmd = command.into();
+        check_command(&cmd)?;
+
+        if name.is_empty() || cmd.is_empty() {
             return Err(CommandError::EmptyCommand);
         }
         let converted_args = args.into_iter().map(|s| s.into()).collect::<Vec<String>>();
         Ok(Self::insert_command(InnerCommand {
             name,
-            command: command.into(),
+            command: cmd,
             args: converted_args,
             cur_dir: None,
             env: HashMap::new(),
@@ -117,6 +121,8 @@ where
         C: Into<String>,
     {
         let (command, args) = parse_command_string(command_string)?;
+        check_command(&command)?;
+
         Ok(Self::insert_command(InnerCommand {
             name: name.into(),
             command,
@@ -298,4 +304,29 @@ fn run_commands<C: Command>(runner: &Runner<C>) -> CommandHandle {
         .map(|c| c.get_command().clone())
         .collect();
     run::run_commands_internal(actual_cmds, runner.to_options())
+}
+
+fn check_command(exec_name: &str) -> Result<(), CommandError> {
+    which::which(exec_name).map_err(|_| CommandError::CommandNotFound(exec_name.to_string()))?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use crate::Command;
+
+    #[test]
+    fn command_not_found() {
+        let cmd = super::ConsoleCommand::from_string("test", "bogus_cmd_not_found");
+
+        match cmd {
+            Err(super::CommandError::CommandNotFound(name)) => {
+                assert_eq!(
+                    &name, "bogus_cmd_not_found",
+                    "Command Not Found Error has wrong command name"
+                )
+            }
+            _ => panic!("bogus command didn't return CommandNotFound"),
+        }
+    }
 }

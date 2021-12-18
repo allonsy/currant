@@ -66,9 +66,25 @@ fn run_command(
             message: OutputMessagePayload::Start,
         });
 
-        let mut cmd_handle = command_process
-            .spawn()
-            .unwrap_or_else(|_| panic!("Unable to spawn process: {}", command.command.clone()));
+        let cmd_handle = command_process.spawn();
+        if cmd_handle.is_err() {
+            let _ = send_chan.send(OutputMessage {
+                name: command_name.clone(),
+                message: OutputMessagePayload::Error(cmd_handle.err().unwrap()),
+            });
+
+            match options.restart {
+                RestartOptions::Restart => continue,
+                RestartOptions::Kill => {
+                    let _ = kill_trigger.initiate_kill();
+                    return (command_name, None);
+                }
+                RestartOptions::Continue => return (command_name, None),
+            }
+        }
+
+        let mut cmd_handle = cmd_handle.unwrap();
+
         let std_out = cmd_handle.stdout.take();
         let std_err = cmd_handle.stderr.take();
         let mut std_out_handle = None;
