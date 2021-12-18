@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::io;
 use std::io::Write;
 use std::path::PathBuf;
+use std::process;
 use std::process::ExitStatus;
 use std::sync::mpsc;
 use std::thread;
@@ -50,12 +51,33 @@ impl AsRef<ChannelCommand> for ChannelCommand {
 }
 
 #[derive(Clone)]
+struct Options {
+    restart: RestartOptions,
+    quiet: bool,
+    file_handle_flags: bool,
+}
+
+#[derive(Clone)]
 pub struct InnerCommand {
     name: String,
     command: String,
     args: Vec<String>,
     cur_dir: Option<PathBuf>,
     env: HashMap<String, String>,
+}
+
+impl InnerCommand {
+    fn to_stdlib_command(&self) -> process::Command {
+        let mut command_process = process::Command::new(&self.command);
+        command_process.args(&self.args);
+        if self.cur_dir.is_some() {
+            command_process.current_dir(self.cur_dir.clone().unwrap());
+        }
+        command_process.envs(self.env.clone());
+        command_process.stdout(process::Stdio::piped());
+
+        command_process
+    }
 }
 
 pub trait Command: Clone
@@ -199,13 +221,6 @@ pub enum RestartOptions {
     Kill,
 }
 
-#[derive(Clone)]
-struct Options {
-    restart: RestartOptions,
-    quiet: bool,
-    file_handle_flags: bool,
-}
-
 pub struct Runner<C: Command> {
     commands: Vec<C>,
     restart: RestartOptions,
@@ -281,6 +296,6 @@ fn run_commands<C: Command>(runner: &Runner<C>) -> CommandHandle {
         .commands
         .iter()
         .map(|c| c.get_command().clone())
-        .collect::<Vec<InnerCommand>>();
+        .collect();
     run::run_commands_internal(actual_cmds, runner.to_options())
 }

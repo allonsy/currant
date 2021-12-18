@@ -58,13 +58,7 @@ fn run_command(
     kill_trigger: kill_barrier::KillBarrier,
 ) -> thread::JoinHandle<ExitResult> {
     thread::spawn(move || loop {
-        let mut command_process = process::Command::new(&command.command);
-        command_process.args(&command.args);
-        if command.cur_dir.is_some() {
-            command_process.current_dir(command.cur_dir.clone().unwrap());
-        }
-        command_process.envs(command.env.clone());
-        command_process.stdout(process::Stdio::piped());
+        let mut command_process = command.to_stdlib_command();
         let command_name = command.name.clone();
 
         let _ = send_chan.send(OutputMessage {
