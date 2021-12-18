@@ -47,6 +47,12 @@ impl Command for ChannelCommand {
     }
 }
 
+impl AsRef<ChannelCommand> for ChannelCommand {
+    fn as_ref(&self) -> &ChannelCommand {
+        self
+    }
+}
+
 #[derive(Clone)]
 pub struct InnerCommand {
     name: String,
@@ -56,7 +62,7 @@ pub struct InnerCommand {
     env: HashMap<String, String>,
 }
 
-pub trait Command
+pub trait Command: Clone
 where
     Self: Sized,
 {
@@ -102,7 +108,7 @@ where
         }))
     }
 
-    fn cur_dir<D>(mut self, dir: D) -> Self
+    fn cur_dir<D>(&mut self, dir: D) -> &mut Self
     where
         D: Into<PathBuf>,
     {
@@ -110,7 +116,7 @@ where
         self
     }
 
-    fn env<K, V>(mut self, key: K, val: V) -> Self
+    fn env<K, V>(&mut self, key: K, val: V) -> &mut Self
     where
         K: Into<String>,
         V: Into<String>,
@@ -217,7 +223,7 @@ impl<C: Command> Default for Runner<C> {
     }
 }
 
-impl<CL: Command> Runner<CL> {
+impl<C: Command> Runner<C> {
     pub fn new() -> Self {
         Runner {
             commands: Vec::new(),
@@ -227,8 +233,8 @@ impl<CL: Command> Runner<CL> {
         }
     }
 
-    pub fn command(&mut self, cmd: CL) -> &mut Self {
-        self.commands.push(cmd);
+    pub fn command<T: AsRef<C>>(&mut self, cmd: T) -> &mut Self {
+        self.commands.push(cmd.as_ref().clone());
         self
     }
 
