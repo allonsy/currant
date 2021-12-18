@@ -5,7 +5,7 @@ use currant::Runner;
 fn main() {
     let handle = Runner::new()
         .command(
-            ConsoleCommand::from_string("test1", "ls -la .")
+            ConsoleCommand::from_string("test1", "lx -la .")
                 .unwrap()
                 .color(Color::BLUE),
         )
