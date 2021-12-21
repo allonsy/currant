@@ -67,14 +67,14 @@ pub struct InnerCommand {
     env: HashMap<String, String>,
 }
 
-impl InnerCommand {
-    fn to_stdlib_command(&self) -> process::Command {
-        let mut command_process = process::Command::new(&self.command);
-        command_process.args(&self.args);
-        if self.cur_dir.is_some() {
-            command_process.current_dir(self.cur_dir.clone().unwrap());
+impl From<InnerCommand> for process::Command {
+    fn from(cmd: InnerCommand) -> Self {
+        let mut command_process = process::Command::new(cmd.command);
+        command_process.args(cmd.args);
+        if cmd.cur_dir.is_some() {
+            command_process.current_dir(cmd.cur_dir.unwrap());
         }
-        command_process.envs(self.env.clone());
+        command_process.envs(cmd.env);
         command_process.stdout(process::Stdio::piped());
 
         command_process
@@ -307,8 +307,10 @@ fn run_commands<C: Command>(runner: &Runner<C>) -> CommandHandle {
 }
 
 fn check_command(exec_name: &str) -> Result<(), CommandError> {
-    which::which(exec_name).map_err(|_| CommandError::CommandNotFound(exec_name.to_string()))?;
-    Ok(())
+    match which::which(exec_name) {
+        Ok(_) => Ok(()),
+        Err(_) => Err(CommandError::CommandNotFound(exec_name.to_string())),
+    }
 }
 
 #[cfg(test)]
@@ -321,12 +323,19 @@ mod test {
 
         match cmd {
             Err(super::CommandError::CommandNotFound(name)) => {
-                assert_eq!(
-                    &name, "bogus_cmd_not_found",
-                    "Command Not Found Error has wrong command name"
-                )
+                assert_eq!(&name, "bogus_cmd_not_found",)
             }
             _ => panic!("bogus command didn't return CommandNotFound"),
+        }
+    }
+
+    #[test]
+    fn command_empty() {
+        let cmd = super::ConsoleCommand::from_string("test", "");
+
+        match cmd {
+            Err(super::CommandError::EmptyCommand) => {}
+            _ => panic!("empty command didn't error out"),
         }
     }
 }

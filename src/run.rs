@@ -57,10 +57,10 @@ fn run_command(
     options: Options,
     kill_trigger: kill_barrier::KillBarrier,
 ) -> thread::JoinHandle<ExitResult> {
-    thread::spawn(move || loop {
-        let mut command_process = command.to_stdlib_command();
-        let command_name = command.name.clone();
+    let command_name = command.name.clone();
+    let mut command_process: process::Command = command.into();
 
+    thread::spawn(move || loop {
         let _ = send_chan.send(OutputMessage {
             name: command_name.clone(),
             message: OutputMessagePayload::Start,
