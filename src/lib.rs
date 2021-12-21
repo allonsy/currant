@@ -1,3 +1,12 @@
+//! Run commands in a concurrant manner
+//! There are three main components to this API:
+//! 1) Channel-based API: a basic API that passes all messages, errors, and statuses to channels that the caller can consume at their leisure.
+//! See [ChannelCommand]
+//! 1) Standard-out based API: an API that prints messages and errors to the console (standard out).
+//! See [ConsoleCommand]
+//! 1) Writer-based API: similar to the standard-out API but prints to an arbitrary writer (like a log file) instead.
+//! See [WriterCommand]
+
 mod color;
 mod kill_barrier;
 mod line_parse;
