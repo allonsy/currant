@@ -227,8 +227,11 @@ pub enum OutputMessagePayload {
     Error(io::Error),
 }
 
+/// Exit status tuple. This string is the human-readable command name, the exit status is the exit
+/// status code of the process if available
 pub type ExitResult = (String, Option<ExitStatus>);
 
+/// A handle so the caller can control various aspects of the running commands
 pub struct CommandHandle {
     handle: thread::JoinHandle<Vec<ExitResult>>,
     channel: mpsc::Receiver<OutputMessage>,
@@ -236,21 +239,30 @@ pub struct CommandHandle {
 }
 
 impl CommandHandle {
+    /// Block the current thread and wait for all processes to exit.
+    /// Returns a list of exit statuses from the child commands.
+    /// If the currant overseer process panics, this function will Err with a string message.
+    /// See [ExitResult] for info on this return type.
     pub fn join(self) -> Result<Vec<ExitResult>, String> {
         self.handle
             .join()
             .map_err(|_| "Thread panic'ed before exit".to_string())
     }
 
+    /// returns a reference to the output channel (only in the channel based API).
+    /// This channel will give the caller access to the output and status messages from the child commands.
+    /// See [OutputMessage] for details on the channel payload.
     pub fn get_output_channel(&self) -> &mpsc::Receiver<OutputMessage> {
         &self.channel
     }
 
+    /// kills all children processes without waiting for them to complete
     pub fn kill(&self) {
         let _ = self.kill_trigger.initiate_kill();
     }
 }
 
+/// Iterates over the messages on the channel. Yields values of [OutputMessage]
 impl Iterator for CommandHandle {
     type Item = OutputMessage;
 
@@ -267,30 +279,65 @@ impl Iterator for &CommandHandle {
     }
 }
 
+/// provides a handle to the running children process for the Writer and Console API.
+/// This differs from [CommandHandle] in that it doesn't provide any reference to the output channel since
+/// that is managed internally by currant.
 pub struct ControlledCommandHandle {
     handle: thread::JoinHandle<Vec<ExitResult>>,
     kill_trigger: kill_barrier::KillBarrier,
 }
 
 impl ControlledCommandHandle {
+    /// Block the thread and wait until all processes have completed. See [CommandHandle::join] for more details.
     pub fn join(self) -> Result<Vec<ExitResult>, String> {
         self.handle
             .join()
             .map_err(|_| "thread panic'ed before exit".to_string())
     }
 
+    /// Kill all children processes without waiting for them to complete. See [CommandHandle::kill] for more details.
     pub fn kill(&self) {
         let _ = self.kill_trigger.initiate_kill();
     }
 }
 
+/// An enum to tell currant what to do when a process exits with _nonzero_ (AKA failure) status
 #[derive(Clone)]
 pub enum RestartOptions {
+    /// (DEFAULT): Let the failed process die (no-restart) and let all other processes continue as normal.
     Continue,
+    /// Restart the failed process
     Restart,
+    /// kill all children when any one process fails
     Kill,
 }
 
+/// A structure that represents a set of commands to run
+/// ## Example:
+/// ```
+/// use currant::Command;
+/// use currant::ConsoleCommand;
+/// use currant::Runner;
+///
+/// let handle = Runner::new()
+/// .command(
+///     ConsoleCommand::from_string("test1", "ls -la .")
+///         .unwrap()
+///         .color(Color::BLUE),
+/// )
+/// .command(
+///     ConsoleCommand::from_string("test2", "ls -la ..")
+///         .unwrap()
+///         .color(Color::RED),
+/// )
+/// .command(
+///     ConsoleCommand::from_string("test3", "ls -la ../..")
+///         .unwrap()
+///         .color(Color::GREEN),
+/// )
+/// .execute();
+/// handle.join().unwrap();
+/// ```
 pub struct Runner<C: Command> {
     commands: Vec<C>,
     restart: RestartOptions,
@@ -305,6 +352,7 @@ impl<C: Command> Default for Runner<C> {
 }
 
 impl<C: Command> Runner<C> {
+    /// Instantiate a new runner with no commands and default options
     pub fn new() -> Self {
         Runner {
             commands: Vec::new(),
@@ -314,21 +362,33 @@ impl<C: Command> Runner<C> {
         }
     }
 
+    /// Add a new command.
+    /// All commands must be from the same API type (e.g. Console, Writer, or Console). No mixing and matching API types.
     pub fn command<T: AsRef<C>>(&mut self, cmd: T) -> &mut Self {
         self.commands.push(cmd.as_ref().clone());
         self
     }
 
+    /// Set the restart behavior. The default is [RestartOptions::Continue].
+    /// See [RestartOptions] for more info.
     pub fn restart(&mut self, restart_opt: RestartOptions) -> &mut Self {
         self.restart = restart_opt;
         self
     }
 
+    /// Set the verbosity level of the output. For Writer and Console API, setting `quiet = true` will suppress housekeeping messages
+    /// like start and stop messages and only display standard out/standard error output.
+    /// The default is `false`.
     pub fn quiet(&mut self, quiet_opt: bool) -> &mut Self {
         self.quiet = quiet_opt;
         self
     }
 
+    /// Set the verbosity on the file handle indicators.
+    /// Normally, for the ConsoleApi and WriterApi, currant will display a `(o)` prefix for standard out
+    /// and display a `(e)` prefix for standard error.
+    /// If `file_handle_flag_opt` is `false` these indicators will be supressed.
+    /// Default is `true`.
     pub fn should_show_file_handle(&mut self, file_handle_flag_opt: bool) -> &mut Self {
         self.file_handle_flags = file_handle_flag_opt;
         self
