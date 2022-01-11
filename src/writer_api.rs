@@ -7,6 +7,43 @@ use std::io::Write;
 use std::sync::mpsc;
 use std::thread;
 
+/// Represents a command that prints output to a given Writer.
+/// All messages for all commands will be printed to the same writer. If you want different writers for different commands, you will
+/// need to manually pipe the output via the channel API. See [ChannelCommand](crate::ChannelCommand) for more info.
+/// In order to instantiate the `Runner` with the correct writer, see: [Runner::execute](struct.Runner.html#impl-2)
+/// ## Example:
+/// ```
+/// use currant::Command;
+/// use currant::Runner;
+/// use currant::WriterCommand;
+/// use fs::File;
+/// use std::fs;
+///
+/// fn main() {
+///     let log_file_name = "test_log.txt";
+///     let log_file = File::create(log_file_name).unwrap();
+///
+///     run_cmds(log_file);
+///
+///     let log_file_contents = std::fs::read(log_file_name).unwrap();
+///
+///     println!("log file contents: ");
+///     println!("{}", String::from_utf8_lossy(&log_file_contents));
+///
+///     fs::remove_file(log_file_name).unwrap();
+/// }
+///
+/// fn run_cmds(file: File) {
+///     // all commands output to the same writer
+///     let handle = Runner::new()
+///         .command(WriterCommand::from_string("test1", "ls -la .").unwrap())
+///         .command(WriterCommand::from_string("test2", "ls -la ..").unwrap())
+///         .command(WriterCommand::from_string("test3", "ls -la ../..").unwrap())
+///         .execute(file);
+///
+///     handle.join().unwrap();
+/// }
+/// ```
 #[derive(Clone)]
 pub struct WriterCommand {
     inner_command: InnerCommand,

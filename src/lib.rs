@@ -312,12 +312,14 @@ pub enum RestartOptions {
     Kill,
 }
 
-/// A structure that represents a set of commands to run
+/// A structure that represents a set of commands to run.
+/// Essentially, this wraps a list of commands with some common options between them.
 /// ## Example:
 /// ```
 /// use currant::Command;
 /// use currant::ConsoleCommand;
 /// use currant::Runner;
+/// use currant::Color;
 ///
 /// let handle = Runner::new()
 /// .command(
@@ -404,18 +406,21 @@ impl<C: Command> Runner<C> {
 }
 
 impl Runner<ChannelCommand> {
+    /// Execute the commands using the Channel API. The `Runner` must be constructed with `ChannelCommand`s.
     pub fn execute(&mut self) -> CommandHandle {
         run_commands(self)
     }
 }
 
 impl Runner<WriterCommand> {
+    /// Execute the commands using the Writer API. The writer must be provided here. The `Runner` must be constructed with `WriterCommand`s
     pub fn execute<W: Write + Send + 'static>(&mut self, writer: W) -> ControlledCommandHandle {
         writer_api::run_commands_writer(self, writer)
     }
 }
 
 impl Runner<ConsoleCommand> {
+    /// Execute the commands using the Console API. The `Runner` must be constructed with `ConsoleCommand`s.
     pub fn execute(&mut self) -> ControlledCommandHandle {
         standard_out_api::run_commands_stdout(self)
     }

@@ -11,6 +11,36 @@ use std::io::Write;
 use std::sync::mpsc;
 use std::thread;
 
+/// Represents a command that prints all messages to the console.
+/// You can set the color of the command via the [ConsoleCommand::color] function. The default is a random color ([Color::Random]).
+/// In this case, currant will choose random but distinct colors so that all commands are as visually distant as possible.
+/// ## Example:
+/// ```
+/// use currant::Color;
+/// use currant::Command;
+/// use currant::ConsoleCommand;
+/// use currant::Runner;
+///
+/// let handle = Runner::new()
+///     .command(
+///         ConsoleCommand::from_string("test1", "ls -la .")
+///             .unwrap()
+///             .color(Color::BLUE),
+///     )
+///     .command(
+///         ConsoleCommand::from_string("test2", "ls -la ..")
+///             .unwrap()
+///             .color(Color::RED),
+///     )
+///     .command(
+///         ConsoleCommand::from_string("test3", "ls -la ../..")
+///             .unwrap()
+///             .color(Color::GREEN),
+///     )
+///     .execute();
+/// handle.join().unwrap();
+/// ```
+
 #[derive(Clone)]
 pub struct ConsoleCommand {
     inner_command: InnerCommand,
@@ -18,6 +48,8 @@ pub struct ConsoleCommand {
 }
 
 impl ConsoleCommand {
+    /// Set the color of the text. This defaults to a random color chosen by the system.
+    /// The system will automatically choose visually distinct colors according to the commands passed to the `Runner` instance.
     pub fn color(&mut self, color: Color) -> &mut Self {
         self.color = color;
         self
