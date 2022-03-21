@@ -1,6 +1,16 @@
 use std::sync::{mpsc, Arc, Barrier, Mutex};
 use std::thread;
 
+/// Synchronizes threads with a barrier-like effect.
+/// All threads wait at the barrier until any one of the threads unlocks the barrier.
+/// At that point, all waiting threads and any future threads are let through the barrier.
+/// An application of this is all supervisor threads need to know whether or not to kill their worker thread.
+/// In this scenario, all supervisor threads are locked at the barrier, but, if any threads need to tell all other threads to die
+/// (if RestartOptions::Kill are set and one of the threads dies for example) all threads are unlocked from the barrier and the threads
+/// will know to die.
+/// This differs from a traditional Barrier in that it isn't based on the number of threads at the barrier but rather a condition.
+/// This differs from a conditional variable (condvar) in that all future threads also are unlocked and not just a one at a time unlock for current threads.
+/// This is more of combination between a condvar and a barrier.
 pub struct KillBarrier {
     kill_chan: mpsc::Sender<()>,
     lock: Arc<Mutex<()>>,
