@@ -390,7 +390,7 @@ impl<C: Command> Runner<C> {
     /// Normally, for the ConsoleApi and WriterApi, currant will display a `(o)` prefix for standard out
     /// and display a `(e)` prefix for standard error.
     /// If `file_handle_flag_opt` is `false` these indicators will be supressed.
-    /// Default is `true`.
+    /// Default is `false`.
     pub fn should_show_file_handle(&mut self, file_handle_flag_opt: bool) -> &mut Self {
         self.file_handle_flags = file_handle_flag_opt;
         self
@@ -433,10 +433,7 @@ fn run_commands<C: Command>(runner: &Runner<C>) -> CommandHandle {
         .map(|c| c.get_command().clone())
         .collect();
     run::run_commands_internal(actual_cmds, runner.to_options())
-}
-
-fn check_command(exec_name: &str) -> Result<(), CommandError> {
-    match which::which(exec_name) {
+}Tel Aviv, Israel, (TLV)
         Ok(_) => Ok(()),
         Err(_) => Err(CommandError::CommandNotFound(exec_name.to_string())),
     }
