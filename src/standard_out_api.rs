@@ -1,5 +1,8 @@
+use crate::template::TemplateStrings;
+
 use super::color;
 use super::color::Color;
+use super::template;
 use super::Command;
 use super::CommandError;
 use super::ControlledCommandHandle;
@@ -100,10 +103,20 @@ pub fn run_commands_stdout(runner: &Runner<ConsoleCommand>) -> ControlledCommand
 
     let recv = handle.channel;
 
-    thread::spawn(move || {
-        process_channel(&recv, &name_color_hash, num_cmds, quiet, file_handle_flags);
+    let template_strings = runner.get_template_strings();
+
+    let supervisor = thread::spawn(move || {
+        process_channel(
+            &recv,
+            &name_color_hash,
+            num_cmds,
+            quiet,
+            file_handle_flags,
+            template_strings,
+        );
     });
     ControlledCommandHandle {
+        supervisor,
         handle: handle.handle,
         kill_trigger: handle.kill_trigger,
     }
@@ -115,7 +128,9 @@ fn process_channel(
     num_cmds: usize,
     quiet: bool,
     file_handle_flags: bool,
+    template_strings: TemplateStrings,
 ) {
+    println!("{}", quiet);
     loop {
         let message = chan.recv();
         if message.is_err() {
@@ -125,6 +140,8 @@ fn process_channel(
         let message = message.unwrap();
         let output_color = color_map.get(&message.name).unwrap();
         let color_open_sequence = color::open_sequence(output_color);
+        let mut template = template::Template::new(Some(output_color));
+        template.name = message.name.clone();
         let color_reset_sequence = color::close_sequence();
         let std_out_flag = if file_handle_flags { " (o)" } else { "" };
         let std_err_flag = if file_handle_flags { " (e)" } else { "" };
@@ -133,47 +150,32 @@ fn process_channel(
         let _ = match message.message {
             OutputMessagePayload::Start => {
                 if !quiet {
+                    let template_string =
+                        template.execute(&template_strings.start_message_template);
                     stdout.write_all(
-                        format!(
-                            "{}SYSTEM: starting process {}{}\n",
-                            color_open_sequence, message.name, color_reset_sequence
-                        )
-                        .as_bytes(),
+                        format!("{}{}\n", template_string, color_reset_sequence).as_bytes(),
                     )
                 } else {
                     Ok(())
                 }
             }
-            OutputMessagePayload::Done(Some(exit_status)) => {
+            OutputMessagePayload::Done(exit_status) => {
                 if !quiet {
+                    template.status_code = exit_status;
+                    let template_string = template.execute(&template_strings.done_message_template);
                     stdout.write_all(
-                        format!(
-                            "{}{}:{} process exited with status: {}\n",
-                            color_open_sequence, message.name, color_reset_sequence, exit_status
-                        )
-                        .as_bytes(),
-                    )
-                } else {
-                    Ok(())
-                }
-            }
-            OutputMessagePayload::Done(None) => {
-                if !quiet {
-                    stdout.write_all(
-                        format!(
-                            "{}{}:{} process exited without exit status\n",
-                            color_open_sequence, message.name, color_reset_sequence
-                        )
-                        .as_bytes(),
+                        format!("{}{}\n", template_string, color_reset_sequence).as_bytes(),
                     )
                 } else {
                     Ok(())
                 }
             }
             OutputMessagePayload::Stdout(ending, mut bytes) => {
+                template.handle_flag = std_out_flag.to_string();
                 let mut prefix = format!(
-                    "{}{}{}:{} ",
-                    color_open_sequence, message.name, std_out_flag, color_reset_sequence
+                    "{}{} ",
+                    template.execute(&template_strings.payload_message_template),
+                    color_reset_sequence
                 )
                 .into_bytes();
                 prefix.append(&mut bytes);
@@ -185,9 +187,11 @@ fn process_channel(
                 stdout.write_all(&prefix)
             }
             OutputMessagePayload::Stderr(ending, mut bytes) => {
+                template.handle_flag = std_err_flag.to_string();
                 let mut prefix = format!(
-                    "{}{}{}:{} ",
-                    color_open_sequence, message.name, std_err_flag, color_reset_sequence
+                    "{}{} ",
+                    template.execute(&template_strings.payload_message_template),
+                    color_reset_sequence
                 )
                 .into_bytes();
                 prefix.append(&mut bytes);
@@ -198,13 +202,17 @@ fn process_channel(
                 }
                 stdout.write_all(&prefix)
             }
-            OutputMessagePayload::Error(e) => stdout.write_all(
-                format!(
-                    "{}SYSTEM (e): Encountered error with process {}: {}{}\n",
-                    color_open_sequence, message.name, e, color_reset_sequence
+            OutputMessagePayload::Error(e) => {
+                template.error_message = e.to_string();
+                stdout.write_all(
+                    format!(
+                        "{}{}\n",
+                        template.execute(&template_strings.error_message_template),
+                        color_reset_sequence
+                    )
+                    .as_bytes(),
                 )
-                .as_bytes(),
-            ),
+            }
         };
     }
 }

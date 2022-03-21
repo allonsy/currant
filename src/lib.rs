@@ -13,6 +13,7 @@ mod kill_barrier;
 mod line_parse;
 mod run;
 mod standard_out_api;
+mod template;
 mod writer_api;
 
 use std::collections::HashMap;
@@ -283,6 +284,7 @@ impl Iterator for &CommandHandle {
 /// This differs from [CommandHandle] in that it doesn't provide any reference to the output channel since
 /// that is managed internally by currant.
 pub struct ControlledCommandHandle {
+    supervisor: thread::JoinHandle<()>,
     handle: thread::JoinHandle<Vec<ExitResult>>,
     kill_trigger: kill_barrier::KillBarrier,
 }
@@ -290,6 +292,9 @@ pub struct ControlledCommandHandle {
 impl ControlledCommandHandle {
     /// Block the thread and wait until all processes have completed. See [CommandHandle::join] for more details.
     pub fn join(self) -> Result<Vec<ExitResult>, String> {
+        self.supervisor
+            .join()
+            .map_err(|_| "thread panic'ed before exit".to_string())?;
         self.handle
             .join()
             .map_err(|_| "thread panic'ed before exit".to_string())
@@ -345,6 +350,10 @@ pub struct Runner<C: Command> {
     restart: RestartOptions,
     quiet: bool,
     file_handle_flags: bool,
+    start_message_template: String,
+    done_message_template: String,
+    payload_message_template: String,
+    error_message_template: String,
 }
 
 impl<C: Command> Default for Runner<C> {
@@ -361,6 +370,13 @@ impl<C: Command> Runner<C> {
             restart: RestartOptions::Continue,
             quiet: false,
             file_handle_flags: false,
+            start_message_template: "{{begin_color}}SYSTEM: starting process {{name}}{{reset_color}}"
+                .to_string(),
+            done_message_template:
+                "{{begin_color}}{{name}}:{{reset_color}} process exited with status: {{status_code}}"
+                    .to_string(),
+            payload_message_template: "{{begin_color}}{{name}}{{handle_flag}}:{{reset_color}} ".to_string(),
+            error_message_template: "{{begin_color}}SYSTEM (e): Encountered error with process {{name}}: {{error_message}}{{reset_color}}".to_string(),
         }
     }
 
@@ -389,10 +405,66 @@ impl<C: Command> Runner<C> {
     /// Set the verbosity on the file handle indicators.
     /// Normally, for the ConsoleApi and WriterApi, currant will display a `(o)` prefix for standard out
     /// and display a `(e)` prefix for standard error.
-    /// If `file_handle_flag_opt` is `false` these indicators will be supressed.
-    /// Default is `true`.
+    /// If `file_handle_flag_opt` is `false` these indicators will be suppressed.
+    /// This will also suppress output from the `{{handle_flag}}` interpolation in [Runner::payload_message_template]
+    /// Default is `false`.
     pub fn should_show_file_handle(&mut self, file_handle_flag_opt: bool) -> &mut Self {
         self.file_handle_flags = file_handle_flag_opt;
+        self
+    }
+
+    /// Set the start message template. This only affects the console and writer APIs.
+    /// Default is:
+    ///
+    /// `{{begin_color} SYSTEM: starting process {{name}}{{reset_color}}`
+    ///
+    /// Possible interpolations are:
+    /// * `{{name}}`: the name of the process
+    /// * `{{begin_color}}`: color the following text with the color of the command (ignored for APIs without color)
+    /// * `{{reset_color}}`: resets the color back to terminal default
+    pub fn start_message_template<S: Into<String>>(&mut self, template: S) -> &mut Self {
+        self.start_message_template = template.into();
+        self
+    }
+
+    /// Set the message template for when the command exits.
+    /// The same interpolations for [Runner::start_message_template] apply here.
+    /// Default is:
+    ///
+    /// `{{begin_color}}{{name}}:{{reset_color}} process exited with status: {{status_code}}`
+    ///
+    /// Additional interpolations:
+    /// * `{{status_code}}`: the exit status of the command. Changes to `(none)` when there is no exit status.
+    pub fn done_message_template<S: Into<String>>(&mut self, template: S) -> &mut Self {
+        self.done_message_template = template.into();
+        self
+    }
+
+    /// Set the message template for when the command has payload to display.
+    /// The same interpolations for [Runner::start_message_template] apply here.
+    /// The actual payload message is displayed directly after the template is executed and printed.
+    /// Default is:
+    ///
+    /// `{{begin_color}}{{name}}{{handle_flag}}:{{reset_color}} `
+    ///
+    /// Additional interpolations:
+    /// * `{{handle_flag}}`: the handle flag for which file handle the payload is on. `(o)` for stdout and `(e)` for standard error.
+    /// If [Runner::should_show_file_handle] is set to false (default), these interpolations will be set to empty string.
+    pub fn payload_message_template<S: Into<String>>(&mut self, template: S) -> &mut Self {
+        self.payload_message_template = template.into();
+        self
+    }
+
+    /// Set the message template for when the command fails.
+    /// The same interpolations for [Runner::start_message_template] apply here.
+    /// Default is:
+    ///
+    /// `{{begin_color}}SYSTEM (e): Encountered error with process {{name}}: {{error_message}}{{reset_color}}`
+    ///
+    /// Additional interpolations:
+    /// * `{{error_message}}`: the error message of what went wrong.
+    pub fn error_message_template<S: Into<String>>(&mut self, template: S) -> &mut Self {
+        self.error_message_template = template.into();
         self
     }
 
@@ -401,6 +473,15 @@ impl<C: Command> Runner<C> {
             restart: self.restart.clone(),
             quiet: self.quiet,
             file_handle_flags: self.file_handle_flags,
+        }
+    }
+
+    fn get_template_strings(&self) -> template::TemplateStrings {
+        template::TemplateStrings {
+            start_message_template: self.start_message_template.clone(),
+            done_message_template: self.done_message_template.clone(),
+            payload_message_template: self.payload_message_template.clone(),
+            error_message_template: self.error_message_template.clone(),
         }
     }
 }
