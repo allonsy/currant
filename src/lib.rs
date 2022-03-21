@@ -433,7 +433,10 @@ fn run_commands<C: Command>(runner: &Runner<C>) -> CommandHandle {
         .map(|c| c.get_command().clone())
         .collect();
     run::run_commands_internal(actual_cmds, runner.to_options())
-}Tel Aviv, Israel, (TLV)
+}
+
+fn check_command(exec_name: &str) -> Result<(), CommandError> {
+    match which::which(exec_name) {
         Ok(_) => Ok(()),
         Err(_) => Err(CommandError::CommandNotFound(exec_name.to_string())),
     }
