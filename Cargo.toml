@@ -18,6 +18,5 @@ exclude = [
 atty = "0.2.14"
 rand = "0.8.4"
 shell-words = "1.0.0"
-which = "4.2.2"
 
 [features]

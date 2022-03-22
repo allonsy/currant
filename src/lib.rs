@@ -14,6 +14,7 @@ mod line_parse;
 mod run;
 mod standard_out_api;
 mod template;
+mod which;
 mod writer_api;
 
 use std::collections::HashMap;
@@ -517,9 +518,10 @@ fn run_commands<C: Command>(runner: &Runner<C>) -> CommandHandle {
 }
 
 fn check_command(exec_name: &str) -> Result<(), CommandError> {
-    match which::which(exec_name) {
-        Ok(_) => Ok(()),
-        Err(_) => Err(CommandError::CommandNotFound(exec_name.to_string())),
+    if which::exec_exists(exec_name) {
+        Ok(())
+    } else {
+        Err(CommandError::CommandNotFound(exec_name.to_string()))
     }
 }
 
