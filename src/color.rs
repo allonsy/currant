@@ -1,10 +1,21 @@
 use atty::Stream;
 use std::collections::HashMap;
 
+/// Represents colors in an ANSI terminal. Represents the color of the text printed to the screen.
+/// This is used in the Console API to tell `currant` what color to print the command metadata.
+/// Each command should get a different color to visually differentiate output.
+/// A Color can be an RGB value, random, or the terminal's default color.
 #[derive(Clone, PartialEq, Debug)]
 pub enum Color {
+    /// Specify a specifc color using RGB values. Also see the equivalent [Color::rgb] function for the equivalent constructor.
     RGB(u8, u8, u8),
+    /// Represents a random color that will be determined at runtime.
+    /// NOTE: This isn't true random. The system looks at all the commands with the [Color::Random] variant and chooses semi-random colors
+    /// trying to maximize the distance (on the color wheel) between each command so each color is as visually distinct as possible.
+    /// This is to avoid cases where two commands have similar colors and it is hard to differentiate them due to random coincidence.
+    /// If you wish to have true random colors, you can either manually set RGB values manually or use the [Color::true_random] function.
     Random,
+    /// The default color for your terminal (depends on your current settings).
     Default,
 }
 
@@ -18,14 +29,21 @@ impl Color {
     pub const WHITE: Self = Color::RGB(255, 255, 0);
     pub const BLACK: Self = Color::RGB(0, 0, 0);
 
+    /// Set a color's RBG values manually
     pub fn rgb(r: u8, g: u8, b: u8) -> Self {
         Color::RGB(r, g, b)
     }
 
+    /// Represents a "truly" random (pseudo-random) in that color distance isn't taken into account and will generate a random color.
+    /// Usually not what you want but if need pseudo-random colors, here you go.
     pub fn true_random() -> Self {
         Color::RGB(rand::random(), rand::random(), rand::random())
     }
 
+    /// Given a number of commands (`num_cmds`), it generates a list of colors that are fairly random guaranteed to be as visually distinct as possible.
+    /// NOTE: You probably don't need to call this if you don't want to. By setting `Color::Random` to each command (or leaving it blank since Random is the default setting),
+    /// currant will automatically call this function manually.
+    /// This function returns a list of colors with cardinality equal to `num_cmds`.
     pub fn random_color_list(num_cmds: u32) -> Vec<Self> {
         let mut colors = Vec::new();
         if num_cmds == 0 {

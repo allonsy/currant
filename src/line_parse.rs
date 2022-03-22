@@ -1,15 +1,33 @@
 use io::BufRead;
 use std::io;
 
+/// Line endings for lines of output to standard out or standard error
 pub enum LineEnding {
+    /// Linefeed line ending (`\n` or `0x0a`).
+    /// This is the standard Linux ending
     Lf,
+    /// Carriage return (`\r` or `0x0d`).
+    /// This is used for some MacOs programs
     Cr,
+    /// Carriage Return + Line feed (`\r\n` or `\0x0a\x0d`).
+    /// This is the standard windows/internet ending
     Crlf,
 }
 
 impl LineEnding {
+    /// Returns true if and only if `self` is a line feed
+    pub fn is_line_feed(&self) -> bool {
+        matches!(self, LineEnding::Lf)
+    }
+
+    /// Returns true if and only if `self` is a carriage return
     pub fn is_carriage_return(&self) -> bool {
         matches!(self, LineEnding::Cr)
+    }
+
+    /// Returns true if and only if `self` is a carriage return followed by a line feed
+    pub fn is_carriage_return_line_feed(&self) -> bool {
+        matches!(self, LineEnding::Crlf)
     }
 }
 
