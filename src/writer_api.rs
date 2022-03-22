@@ -1,3 +1,4 @@
+use super::template;
 use super::Command;
 use super::ControlledCommandHandle;
 use super::InnerCommand;
@@ -77,17 +78,23 @@ where
 
     let recv = handle.channel;
 
-    thread::spawn(move || {
-        process_channel(&recv, writer);
+    let template_strings = runner.get_template_strings();
+
+    let supervisor = thread::spawn(move || {
+        process_channel(&recv, template_strings, writer);
     });
     ControlledCommandHandle {
+        supervisor,
         handle: handle.handle,
         kill_trigger: handle.kill_trigger,
     }
 }
 
-fn process_channel<W>(chan: &mpsc::Receiver<super::OutputMessage>, mut writer: W)
-where
+fn process_channel<W>(
+    chan: &mpsc::Receiver<super::OutputMessage>,
+    template_strings: template::TemplateStrings,
+    mut writer: W,
+) where
     W: Write + Send,
 {
     loop {
@@ -97,39 +104,56 @@ where
         }
 
         let message = message.unwrap();
+
+        let mut template = template::Template::new(None);
+        template.name = message.name;
+
         let _ = match message.message {
-            OutputMessagePayload::Start => {
-                writer.write_all(format!("SYSTEM: starting process: {}\n", message.name).as_bytes())
-            }
-            OutputMessagePayload::Done(Some(exit_status)) => writer.write_all(
+            OutputMessagePayload::Start => writer.write_all(
                 format!(
-                    "{}: process exited with status: {}\n",
-                    message.name, exit_status
+                    "{}\n",
+                    template.execute(&template_strings.start_message_template)
                 )
                 .as_bytes(),
             ),
-            OutputMessagePayload::Done(None) => writer.write_all(
-                format!("{}: process exited without exit status\n", message.name).as_bytes(),
-            ),
+            OutputMessagePayload::Done(exit_status) => {
+                template.status_code = exit_status;
+                writer.write_all(
+                    format!(
+                        "{}\n",
+                        template.execute(&template_strings.done_message_template)
+                    )
+                    .as_bytes(),
+                )
+            }
             OutputMessagePayload::Stdout(_, mut bytes) => {
-                let mut prefix = format!("{} (o): ", message.name).into_bytes();
+                template.handle_flag = " (o)".to_string();
+                let mut prefix = template
+                    .execute(&template_strings.payload_message_template)
+                    .into_bytes();
                 prefix.append(&mut bytes);
                 prefix.push(b'\n');
                 writer.write_all(&prefix)
             }
             OutputMessagePayload::Stderr(_, mut bytes) => {
-                let mut prefix = format!("{} (e): ", message.name).into_bytes();
+                template.handle_flag = " (e)".to_string();
+                let mut prefix = template
+                    .execute(&template_strings.payload_message_template)
+                    .into_bytes();
                 prefix.append(&mut bytes);
                 prefix.push(b'\n');
                 writer.write_all(&prefix)
             }
-            OutputMessagePayload::Error(e) => writer.write_all(
-                format!(
-                    "SYSTEM (e): Encountered error with process {}: {}\n",
-                    message.name, e
+            OutputMessagePayload::Error(e) => {
+                template.error_message = e.to_string();
+                writer.write_all(
+                    format!(
+                        "{}\n",
+                        template.execute(&template_strings.error_message_template)
+                    )
+                    .as_bytes(),
                 )
-                .as_bytes(),
-            ),
+            }
         };
     }
 }
