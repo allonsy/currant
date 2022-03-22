@@ -1,6 +1,7 @@
 [package]
 name = "currant"
 description = "A simple library to spawn concurrent shell processes in rust"
+documentation = "https://docs.rs/currant/0.2.2/currant"
 version = "0.2.3"
 edition = "2021"
 license = "MIT"
