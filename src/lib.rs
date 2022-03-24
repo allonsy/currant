@@ -376,7 +376,7 @@ impl<C: Command> Runner<C> {
             done_message_template:
                 "{{begin_color}}{{name}}:{{reset_color}} process exited with status: {{status_code}}"
                     .to_string(),
-            payload_message_template: "{{begin_color}}{{name}}{{handle_flag}}:{{reset_color}} ".to_string(),
+            payload_message_template: "{{begin_color}}{{name}}{{handle_flag}}:{{reset_color}}".to_string(),
             error_message_template: "{{begin_color}}SYSTEM (e): Encountered error with process {{name}}: {{error_message}}{{reset_color}}".to_string(),
         }
     }
@@ -446,7 +446,7 @@ impl<C: Command> Runner<C> {
     /// The actual payload message is displayed directly after the template is executed and printed.
     /// Default is:
     ///
-    /// `{{begin_color}}{{name}}{{handle_flag}}:{{reset_color}} `
+    /// `{{begin_color}}{{name}}{{handle_flag}}:{{reset_color}}`
     ///
     /// Additional interpolations:
     /// * `{{handle_flag}}`: the handle flag for which file handle the payload is on. `(o)` for stdout and `(e)` for standard error.
