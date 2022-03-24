@@ -130,7 +130,6 @@ fn process_channel(
     file_handle_flags: bool,
     template_strings: TemplateStrings,
 ) {
-    println!("{}", quiet);
     loop {
         let message = chan.recv();
         if message.is_err() {
