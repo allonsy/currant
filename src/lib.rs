@@ -322,10 +322,7 @@ pub enum RestartOptions {
 /// Essentially, this wraps a list of commands with some common options between them.
 /// ## Example:
 /// ```
-/// use currant::Command;
-/// use currant::ConsoleCommand;
-/// use currant::Runner;
-/// use currant::Color;
+/// use currant::{Command, ConsoleCommand, Runner, Color};
 ///
 /// let handle = Runner::new()
 /// .command(

@@ -13,7 +13,7 @@ pub enum Color {
     /// NOTE: This isn't true random. The system looks at all the commands with the [Color::Random] variant and chooses semi-random colors
     /// trying to maximize the distance (on the color wheel) between each command so each color is as visually distinct as possible.
     /// This is to avoid cases where two commands have similar colors and it is hard to differentiate them due to random coincidence.
-    /// If you wish to have true random colors, you can either manually set RGB values manually or use the [Color::true_random] function.
+    /// If you wish to have true random colors, you can either manually set RGB values or use the [Color::true_random] function.
     Random,
     /// The default color for your terminal (depends on your current settings).
     Default,

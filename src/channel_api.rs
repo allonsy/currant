@@ -6,10 +6,7 @@ use super::InnerCommand;
 /// This API provides the most flexibility at the cost of the most work to the user.
 /// ## Example:
 /// ```
-/// use currant::ChannelCommand;
-/// use currant::Command;
-/// use currant::OutputMessagePayload;
-/// use currant::Runner;
+/// use currant::{ChannelCommand, Command, OutputMessagePayload, Runner};
 ///
 /// let handle = Runner::new()
 ///     .command(ChannelCommand::from_string("test1", "ls -la .").unwrap())
