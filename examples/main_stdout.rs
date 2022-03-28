@@ -1,7 +1,4 @@
-use currant::Color;
-use currant::Command;
-use currant::ConsoleCommand;
-use currant::Runner;
+use currant::{Color, Command, ConsoleCommand, Runner};
 fn main() {
     let handle = Runner::new()
         .command(

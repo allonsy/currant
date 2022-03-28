@@ -1,7 +1,4 @@
-use currant::ChannelCommand;
-use currant::Command;
-use currant::OutputMessagePayload;
-use currant::Runner;
+use currant::{ChannelCommand, Command, OutputMessagePayload, Runner};
 
 fn main() {
     let handle = Runner::new()

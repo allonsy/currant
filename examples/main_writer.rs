@@ -1,6 +1,4 @@
-use currant::Command;
-use currant::Runner;
-use currant::WriterCommand;
+use currant::{Command, Runner, WriterCommand};
 use fs::File;
 use std::fs;
 

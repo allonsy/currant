@@ -19,10 +19,7 @@ use std::thread;
 /// In this case, currant will choose random but distinct colors so that all commands are as visually distant as possible.
 /// ## Example:
 /// ```
-/// use currant::Color;
-/// use currant::Command;
-/// use currant::ConsoleCommand;
-/// use currant::Runner;
+/// use currant::{Color, Command, ConsoleCommand, Runner};
 ///
 /// let handle = Runner::new()
 ///     .command(
