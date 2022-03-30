@@ -33,6 +33,8 @@ pub use standard_out_api::parse_command_string;
 pub use standard_out_api::ConsoleCommand;
 pub use writer_api::WriterCommand;
 
+pub const CURRENT_WORKING_DIRECTORY: Option<String> = None;
+
 /// Error type describing any errors encountered while constructing the command
 #[derive(Debug)]
 pub enum CommandError {
@@ -105,25 +107,35 @@ where
     /// Provide a mutable reference to the wrapped [InnerCommand] that was inserted via [insert_command](Command::insert_command)
     fn get_command_mut(&mut self) -> &mut InnerCommand;
 
-    /// Construct a command from a command name (human readable command name), command executable, and a list of arguments.
+    /// Construct a command from a command name (human readable command name), command executable, a list of arguments, and a directory to run the command in.
+    /// None for `cur_dir` will default to the current working directory (or use [CURRENT_WORKING_DIRECTORY] constant).
+    ///
     /// If the command cannot be constructed for various reasons, an `Err(CommandError)` is returned. See [CommandError] for more info on errors.
     /// ## Example
     /// ```
     /// use currant::ConsoleCommand;
     /// use currant::Command;
+    /// use currant::CURRENT_WORKING_DIRECTORY;
     ///
-    /// let cmd = ConsoleCommand::from_argv("test_cmd", "ls", ["la", "."]).unwrap();
+    /// let cmd = ConsoleCommand::from_argv("test_cmd", "ls", ["la", "."], CURRENT_WORKING_DIRECTORY).unwrap();
     /// ```
-    fn from_argv<S, C, ArgType, Cmds>(name: S, command: C, args: Cmds) -> Result<Self, CommandError>
+    fn from_argv<S, C, D, ArgType, Cmds>(
+        name: S,
+        command: C,
+        args: Cmds,
+        cur_dir: Option<D>,
+    ) -> Result<Self, CommandError>
     where
         S: Into<String>,
         C: Into<String>,
+        D: Into<PathBuf>,
         ArgType: Into<String>,
         Cmds: IntoIterator<Item = ArgType>,
     {
         let name = name.into();
         let cmd = command.into();
-        check_command(&cmd)?;
+        let dir = cur_dir.map(|d| d.into());
+        check_command(&cmd, &dir)?;
 
         if name.is_empty() || cmd.is_empty() {
             return Err(CommandError::EmptyCommand);
@@ -133,12 +145,14 @@ where
             name,
             command: cmd,
             args: converted_args,
-            cur_dir: None,
+            cur_dir: dir,
             env: HashMap::new(),
         }))
     }
 
-    /// Construct a command from a command name (human readable command name) and a full cli string.
+    /// Construct a command from a command name (human readable command name), a full cli string, and a current working directory.
+    /// For options on `cur_dir`, please see [Command::from_argv].
+    ///
     /// The API will parse the cli string into the executable and arguments automatically.
     /// The API supports some features like quotes but not advanced features like pipes or logical operators.
     /// For those advanced features, you will need to format the command as a subshell (via `sh -c "..."`).
@@ -147,43 +161,33 @@ where
     /// ```
     /// use currant::ConsoleCommand;
     /// use currant::Command;
+    /// use currant::CURRENT_WORKING_DIRECTORY;
     ///
-    /// let cmd = ConsoleCommand::from_string("test_cmd", "ls -la .").unwrap();
-    /// let cmd = ConsoleCommand::from_string("test_cmd", "echo \"hello, world\"").unwrap();
+    /// let cmd = ConsoleCommand::from_string("test_cmd", "ls -la .", CURRENT_WORKING_DIRECTORY).unwrap();
+    /// let cmd = ConsoleCommand::from_string("test_cmd", "echo \"hello, world\"", CURRENT_WORKING_DIRECTORY).unwrap();
     /// // BAD: doesn't actually pipe: let cmd = ConsoleCommand::from_string("test_cmd", "ls . | ls ..").unwrap();
     /// ```
-    fn from_string<S, C>(name: S, command_string: C) -> Result<Self, CommandError>
+    fn from_string<S, C, D>(
+        name: S,
+        command_string: C,
+        cur_dir: Option<D>,
+    ) -> Result<Self, CommandError>
     where
         S: Into<String>,
         C: Into<String>,
+        D: Into<PathBuf>,
     {
         let (command, args) = parse_command_string(command_string)?;
-        check_command(&command)?;
+        let dir = cur_dir.map(|d| d.into());
+        check_command(&command, &dir)?;
 
         Ok(Self::insert_command(InnerCommand {
             name: name.into(),
             command,
             args,
-            cur_dir: None,
+            cur_dir: dir,
             env: HashMap::new(),
         }))
-    }
-
-    /// Set the current directory for this command to run in (defaults to the current directory)
-    /// ## Example
-    /// ```
-    /// use currant::ConsoleCommand;
-    /// use currant::Command;
-    ///
-    /// let mut cmd = ConsoleCommand::from_string("test_cmd", "ls -la .").unwrap();
-    /// cmd.cur_dir("path/to/new/dir");
-    /// ```
-    fn cur_dir<D>(&mut self, dir: D) -> &mut Self
-    where
-        D: Into<PathBuf>,
-    {
-        self.get_command_mut().cur_dir = Some(dir.into());
-        self
     }
 
     /// Sets environment variables for this command.
@@ -191,8 +195,9 @@ where
     /// ```
     /// use currant::ConsoleCommand;
     /// use currant::Command;
+    /// use currant::CURRENT_WORKING_DIRECTORY;
     ///
-    /// let mut cmd = ConsoleCommand::from_string("test_cmd", "ls -la .").unwrap();
+    /// let mut cmd = ConsoleCommand::from_string("test_cmd", "ls -la .", CURRENT_WORKING_DIRECTORY).unwrap();
     /// cmd.env("key", "val");
     /// ```
     fn env<K, V>(&mut self, key: K, val: V) -> &mut Self
@@ -322,21 +327,21 @@ pub enum RestartOptions {
 /// Essentially, this wraps a list of commands with some common options between them.
 /// ## Example:
 /// ```
-/// use currant::{Command, ConsoleCommand, Runner, Color};
+/// use currant::{Command, ConsoleCommand, Runner, Color, CURRENT_WORKING_DIRECTORY};
 ///
 /// let handle = Runner::new()
 /// .command(
-///     ConsoleCommand::from_string("test1", "ls -la .")
+///     ConsoleCommand::from_string("test1", "ls -la .", CURRENT_WORKING_DIRECTORY)
 ///         .unwrap()
 ///         .color(Color::BLUE),
 /// )
 /// .command(
-///     ConsoleCommand::from_string("test2", "ls -la ..")
+///     ConsoleCommand::from_string("test2", "ls -la ..", CURRENT_WORKING_DIRECTORY)
 ///         .unwrap()
 ///         .color(Color::RED),
 /// )
 /// .command(
-///     ConsoleCommand::from_string("test3", "ls -la ../..")
+///     ConsoleCommand::from_string("test3", "ls -la ../..", CURRENT_WORKING_DIRECTORY)
 ///         .unwrap()
 ///         .color(Color::GREEN),
 /// )
@@ -514,8 +519,8 @@ fn run_commands<C: Command>(runner: &Runner<C>) -> CommandHandle {
     run::run_commands_internal(actual_cmds, runner.to_options())
 }
 
-fn check_command(exec_name: &str) -> Result<(), CommandError> {
-    if which::exec_exists(exec_name) {
+fn check_command(exec_name: &str, dir: &Option<PathBuf>) -> Result<(), CommandError> {
+    if which::exec_exists(exec_name, dir) {
         Ok(())
     } else {
         Err(CommandError::CommandNotFound(exec_name.to_string()))
@@ -528,7 +533,11 @@ mod test {
 
     #[test]
     fn command_not_found() {
-        let cmd = super::ConsoleCommand::from_string("test", "bogus_cmd_not_found");
+        let cmd = super::ConsoleCommand::from_string(
+            "test",
+            "bogus_cmd_not_found",
+            super::CURRENT_WORKING_DIRECTORY,
+        );
 
         match cmd {
             Err(super::CommandError::CommandNotFound(name)) => {
@@ -540,7 +549,7 @@ mod test {
 
     #[test]
     fn command_empty() {
-        let cmd = super::ConsoleCommand::from_string("test", "");
+        let cmd = super::ConsoleCommand::from_string("test", "", super::CURRENT_WORKING_DIRECTORY);
 
         match cmd {
             Err(super::CommandError::EmptyCommand) => {}

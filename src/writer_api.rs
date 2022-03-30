@@ -17,6 +17,7 @@ use std::thread;
 /// use currant::Command;
 /// use currant::Runner;
 /// use currant::WriterCommand;
+/// use currant::CURRENT_WORKING_DIRECTORY;
 /// use fs::File;
 /// use std::fs;
 ///
@@ -37,9 +38,9 @@ use std::thread;
 /// fn run_cmds(file: File) {
 ///     // all commands output to the same writer
 ///     let handle = Runner::new()
-///         .command(WriterCommand::from_string("test1", "ls -la .").unwrap())
-///         .command(WriterCommand::from_string("test2", "ls -la ..").unwrap())
-///         .command(WriterCommand::from_string("test3", "ls -la ../..").unwrap())
+///         .command(WriterCommand::from_string("test1", "ls -la .", CURRENT_WORKING_DIRECTORY).unwrap())
+///         .command(WriterCommand::from_string("test2", "ls -la ..", CURRENT_WORKING_DIRECTORY).unwrap())
+///         .command(WriterCommand::from_string("test3", "ls -la ../..", CURRENT_WORKING_DIRECTORY).unwrap())
 ///         .execute(file);
 ///
 ///     handle.join().unwrap();
