@@ -1,4 +1,4 @@
-use currant::{Command, Runner, WriterCommand};
+use currant::{Command, Runner, WriterCommand, CURRENT_WORKING_DIRECTORY};
 use fs::File;
 use std::fs;
 
@@ -18,9 +18,15 @@ fn main() {
 
 fn run_cmds(file: File) {
     let handle = Runner::new()
-        .command(WriterCommand::from_string("test1", "ls -la .").unwrap())
-        .command(WriterCommand::from_string("test2", "ls -la ..").unwrap())
-        .command(WriterCommand::from_string("test3", "ls -la ../..").unwrap())
+        .command(
+            WriterCommand::from_string("test1", "ls -la .", CURRENT_WORKING_DIRECTORY).unwrap(),
+        )
+        .command(
+            WriterCommand::from_string("test2", "ls -la ..", CURRENT_WORKING_DIRECTORY).unwrap(),
+        )
+        .command(
+            WriterCommand::from_string("test3", "ls -la ../..", CURRENT_WORKING_DIRECTORY).unwrap(),
+        )
         .execute(file);
 
     handle.join().unwrap();

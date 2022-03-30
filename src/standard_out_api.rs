@@ -19,21 +19,21 @@ use std::thread;
 /// In this case, currant will choose random but distinct colors so that all commands are as visually distant as possible.
 /// ## Example:
 /// ```
-/// use currant::{Color, Command, ConsoleCommand, Runner};
+/// use currant::{Color, Command, ConsoleCommand, Runner, CURRENT_WORKING_DIRECTORY};
 ///
 /// let handle = Runner::new()
 ///     .command(
-///         ConsoleCommand::from_string("test1", "ls -la .")
+///         ConsoleCommand::from_string("test1", "ls -la .", CURRENT_WORKING_DIRECTORY)
 ///             .unwrap()
 ///             .color(Color::BLUE),
 ///     )
 ///     .command(
-///         ConsoleCommand::from_string("test2", "ls -la ..")
+///         ConsoleCommand::from_string("test2", "ls -la ..", CURRENT_WORKING_DIRECTORY)
 ///             .unwrap()
 ///             .color(Color::RED),
 ///     )
 ///     .command(
-///         ConsoleCommand::from_string("test3", "ls -la ../..")
+///         ConsoleCommand::from_string("test3", "ls -la ../..", CURRENT_WORKING_DIRECTORY)
 ///             .unwrap()
 ///             .color(Color::GREEN),
 ///     )
@@ -234,17 +234,20 @@ mod tests {
     use crate::Command;
     use crate::RestartOptions;
     use crate::Runner;
+    use crate::CURRENT_WORKING_DIRECTORY;
 
     #[test]
     fn run_commands() {
         let handle = Runner::new()
-            .command(ConsoleCommand::from_string("test1", "ls -la .").unwrap())
-            .command(ConsoleCommand::from_string("test2", "ls -la ..").unwrap())
             .command(
-                ConsoleCommand::from_string("test3", "ls -la ../..")
-                    .unwrap()
-                    .cur_dir(".."),
+                ConsoleCommand::from_string("test1", "ls -la .", CURRENT_WORKING_DIRECTORY)
+                    .unwrap(),
             )
+            .command(
+                ConsoleCommand::from_string("test2", "ls -la ..", CURRENT_WORKING_DIRECTORY)
+                    .unwrap(),
+            )
+            .command(ConsoleCommand::from_string("test3", "ls -la ../..", Some("..")).unwrap())
             .restart(RestartOptions::Kill)
             .execute();
         let _ = handle.join();
