@@ -267,6 +267,12 @@ impl CommandHandle {
     pub fn kill(&self) {
         let _ = self.kill_trigger.initiate_kill();
     }
+
+    // gets a handle to kill all the children threads.
+    // This is useful when the command handle is waiting on a join but you need to kill from a supervisor thread
+    pub fn get_kill_switch(&self) -> kill_barrier::KillBarrier {
+        self.kill_trigger.clone()
+    }
 }
 
 /// Iterates over the messages on the channel. Yields values of [OutputMessage]
@@ -309,6 +315,11 @@ impl ControlledCommandHandle {
     /// Kill all children processes without waiting for them to complete. See [CommandHandle::kill] for more details.
     pub fn kill(&self) {
         let _ = self.kill_trigger.initiate_kill();
+    }
+
+    // gets a handle to kill all the children threads. See [CommandHandle::get_kill_switch] for more details
+    pub fn get_kill_switch(&self) -> kill_barrier::KillBarrier {
+        self.kill_trigger.clone()
     }
 }
 
