@@ -53,7 +53,7 @@ impl HandleControl {
 
     /// UNIX-ONLY: Send a unix signal to all child processes.
     /// See [Signal] for variants.
-    /// On windows machines this will most likely just kill all the child processes.
+    /// On windows machines this will most likely just kill all child processes.
     /// If an error occurs sending a message to a specific process, currant will silently move on to the next child process
     pub fn signal_all(&self, signal: Signal) {
         for pid_arc in self.pids.iter() {
