@@ -9,6 +9,7 @@
 
 mod channel_api;
 mod color;
+mod control;
 mod kill_barrier;
 mod line_parse;
 mod run;
@@ -24,10 +25,14 @@ use std::path::PathBuf;
 use std::process;
 use std::process::ExitStatus;
 use std::sync::mpsc;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::thread;
 
 pub use channel_api::ChannelCommand;
 pub use color::Color;
+pub use control::HandleControl;
+pub use control::Signal;
 pub use line_parse::LineEnding;
 pub use standard_out_api::parse_command_string;
 pub use standard_out_api::ConsoleCommand;
@@ -243,6 +248,7 @@ pub struct CommandHandle {
     handle: thread::JoinHandle<Vec<ExitResult>>,
     channel: mpsc::Receiver<OutputMessage>,
     kill_trigger: kill_barrier::KillBarrier,
+    pids: Vec<Arc<(String, Mutex<Option<u32>>)>>,
 }
 
 impl CommandHandle {
@@ -268,10 +274,11 @@ impl CommandHandle {
         let _ = self.kill_trigger.initiate_kill();
     }
 
-    // gets a handle to kill all the children threads.
-    // This is useful when the command handle is waiting on a join but you need to kill from a supervisor thread
-    pub fn get_kill_switch(&self) -> kill_barrier::KillBarrier {
-        self.kill_trigger.clone()
+    /// gets a handle to a [HandleControl] for the underlying threads.
+    /// This allows you to kill and send signals to the underlying threads.
+    /// See [HandleControl] for more details
+    pub fn get_signaler(&self) -> control::HandleControl {
+        HandleControl::new(self.pids.clone(), self.kill_trigger.clone())
     }
 }
 
@@ -299,6 +306,7 @@ pub struct ControlledCommandHandle {
     supervisor: thread::JoinHandle<()>,
     handle: thread::JoinHandle<Vec<ExitResult>>,
     kill_trigger: kill_barrier::KillBarrier,
+    pids: Vec<Arc<(String, Mutex<Option<u32>>)>>,
 }
 
 impl ControlledCommandHandle {
@@ -317,9 +325,11 @@ impl ControlledCommandHandle {
         let _ = self.kill_trigger.initiate_kill();
     }
 
-    // gets a handle to kill all the children threads. See [CommandHandle::get_kill_switch] for more details
-    pub fn get_kill_switch(&self) -> kill_barrier::KillBarrier {
-        self.kill_trigger.clone()
+    /// gets a handle to a [HandleControl] for the underlying threads.
+    /// This allows you to kill and send signals to the underlying threads.
+    /// See [HandleControl] for more details
+    pub fn get_signaler(&self) -> control::HandleControl {
+        HandleControl::new(self.pids.clone(), self.kill_trigger.clone())
     }
 }
 

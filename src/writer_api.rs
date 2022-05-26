@@ -88,6 +88,7 @@ where
         supervisor,
         handle: handle.handle,
         kill_trigger: handle.kill_trigger,
+        pids: handle.pids,
     }
 }
 

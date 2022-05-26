@@ -116,6 +116,7 @@ pub fn run_commands_stdout(runner: &Runner<ConsoleCommand>) -> ControlledCommand
         supervisor,
         handle: handle.handle,
         kill_trigger: handle.kill_trigger,
+        pids: handle.pids,
     }
 }
 
