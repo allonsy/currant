@@ -12,7 +12,7 @@ pub struct HandleControl {
 
 impl HandleControl {
     /// Construct a new [HandleControl].
-    /// This shouldn't really be called. Use [CommandHandle::get_signaler] and [ControlledCommandHandle::get_signaler] instead
+    /// This shouldn't really be called. Use [CommandHandle::get_signaler](crate::CommandHandle::get_signaler) and [ControlledCommandHandle::get_signaler](crate::ControlledCommandHandle::get_signaler) instead
     pub fn new(pids: Vec<Arc<(String, Mutex<Option<u32>>)>>, barrier: KillBarrier) -> Self {
         Self {
             pids,

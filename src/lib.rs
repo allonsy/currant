@@ -31,7 +31,7 @@ use std::thread;
 
 pub use channel_api::ChannelCommand;
 pub use color::Color;
-use control::HandleControl;
+pub use control::HandleControl;
 pub use line_parse::LineEnding;
 pub use standard_out_api::parse_command_string;
 pub use standard_out_api::ConsoleCommand;
