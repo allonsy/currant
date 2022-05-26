@@ -17,6 +17,7 @@ exclude = [
 
 [dependencies]
 atty = "0.2.14"
+nix = "0.24.1"
 rand = "0.8.5"
 shell-words = "1.1.0"
 

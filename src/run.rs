@@ -22,18 +22,26 @@ pub(super) fn run_commands_internal(
     let (send, recv) = mpsc::channel();
     let kill_trigger = kill_barrier::KillBarrier::new();
     let kill_trigger_clone = kill_trigger.clone();
+    let mut pid_list = Vec::new();
+
+    for cmd in commands.iter() {
+        pid_list.push(Arc::new((cmd.name.clone(), Mutex::new(None))));
+    }
+
+    let pid_list_clone = pid_list.clone();
 
     let command_names: Vec<String> = commands.iter().map(|cmd| cmd.name.clone()).collect();
 
     let handle = thread::spawn(move || {
         let mut handles = Vec::new();
         let mut statuses = Vec::new();
-        for cmd in commands {
+        for (idx, cmd) in commands.into_iter().enumerate() {
             handles.push(run_command(
                 cmd,
                 send.clone(),
                 options.clone(),
                 kill_trigger_clone.clone(),
+                &pid_list_clone[idx],
             ));
         }
 
@@ -48,6 +56,7 @@ pub(super) fn run_commands_internal(
         handle,
         channel: recv,
         kill_trigger,
+        pids: pid_list,
     }
 }
 
@@ -56,11 +65,14 @@ fn run_command(
     send_chan: mpsc::Sender<OutputMessage>,
     options: Options,
     kill_trigger: kill_barrier::KillBarrier,
+    pid_lock: &Arc<(String, Mutex<Option<u32>>)>,
 ) -> thread::JoinHandle<ExitResult> {
     let command_name = command.name.clone();
     let mut command_process: process::Command = command.into();
+    let pid_lock = pid_lock.clone();
 
     thread::spawn(move || loop {
+        let current_pid = pid_lock.1.lock();
         let _ = send_chan.send(OutputMessage {
             name: command_name.clone(),
             message: OutputMessagePayload::Start,
@@ -84,6 +96,9 @@ fn run_command(
         }
 
         let mut cmd_handle = cmd_handle.unwrap();
+        if let Ok(mut current_pid) = current_pid {
+            *current_pid = Some(cmd_handle.id());
+        }
 
         let std_out = cmd_handle.stdout.take();
         let std_err = cmd_handle.stderr.take();
