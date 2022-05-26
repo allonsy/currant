@@ -2,7 +2,7 @@
 name = "currant"
 description = "A simple library to spawn concurrent shell processes in rust"
 documentation = "https://docs.rs/currant/latest/currant"
-version = "0.2.7"
+version = "0.2.8"
 edition = "2021"
 license = "MIT"
 readme = "README.md"
