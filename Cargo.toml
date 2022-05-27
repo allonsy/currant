@@ -17,7 +17,7 @@ exclude = [
 
 [dependencies]
 atty = "0.2.14"
-nix = "0.24.1"
+nix = { version = "0.24.1", default-features = false, features = ["signal"] }
 rand = "0.8.5"
 shell-words = "1.1.0"
 
